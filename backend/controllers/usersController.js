@@ -337,21 +337,37 @@ const uploadCustomers = async (req, res, next) => {
 
         // Bulk Upsert
         if (customerUpserts.size > 0) {
-            const values = [];
-            const placeholders = [];
-            let i = 1;
+            const allCustomers = Array.from(customerUpserts.values());
+            const CHUNK_SIZE = 100;
 
-            for (const [noCust, info] of customerUpserts) {
-                placeholders.push(`($${i}, $${i + 1}, $${i + 2}, $${i + 3}, $${i + 4})`);
-                values.push(noCust, info.name, info.email, info.phone, info.address);
-                i += 5;
+            for (let i = 0; i < allCustomers.length; i += CHUNK_SIZE) {
+                const chunk = allCustomers.slice(i, i + CHUNK_SIZE);
+                const values = [];
+                const placeholders = [];
+
+                chunk.forEach((customer, index) => {
+                    const idx = index * 5;
+                    placeholders.push(`($${idx + 1}, $${idx + 2}, $${idx + 3}, $${idx + 4}, $${idx + 5})`);
+                    // We need to find the key (no_customer) for this customer object
+                    // In Map, values iterator gives objects. Let's iterate entries instead.
+                });
+
+                // Re-do loop strategy using entries to get both no_customer and info
             }
 
-            // Chunking
-            const CHUNK_SIZE = 100; // 5 params per row * 100 = 500 params < 65535 Psql limit
-            for (let j = 0; j < placeholders.length; j += CHUNK_SIZE) {
-                const chunkPlaceholders = placeholders.slice(j, j + CHUNK_SIZE);
-                const chunkValues = values.slice(j * 5, (j + CHUNK_SIZE) * 5);
+            // Correct approach: Convert Map to array of [key, value]
+            const customerEntries = Array.from(customerUpserts.entries());
+
+            for (let i = 0; i < customerEntries.length; i += CHUNK_SIZE) {
+                const chunk = customerEntries.slice(i, i + CHUNK_SIZE);
+                const chunkValues = [];
+                const chunkPlaceholders = [];
+
+                chunk.forEach(([noCust, info], idx) => {
+                    const base = idx * 5;
+                    chunkPlaceholders.push(`($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5})`);
+                    chunkValues.push(noCust, info.name, info.email, info.phone, info.address);
+                });
 
                 await pool.query(
                     `INSERT INTO customers (no_customer, name, email, phone, address) VALUES ${chunkPlaceholders.join(', ')}
