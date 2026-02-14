@@ -2,7 +2,7 @@ const pool = require('../config/db');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const { parseExcelFile, validateSalesColumns, validateStockColumns, createSalesTemplate, createStockTemplate } = require('../utils/excelParser');
+const { parseExcelFile, validateSalesColumns, validateStockColumns, createSalesTemplate, createStockTemplate, normalizeSalesRow } = require('../utils/excelParser');
 const { calculatePoints, determineTier } = require('../utils/pointsCalculator');
 const XLSX = require('xlsx');
 
@@ -274,16 +274,28 @@ const uploadSales = async (req, res, next) => {
 
         for (let i = 0; i < data.length; i++) {
             try {
-                const row = data[i];
-                const noFaktur = row.NO_FAKTUR || row.no_faktur;
-                const tanggal = row.TANGGAL || row.tanggal;
-                const noCustomer = row.NO_CUSTOMER || row.no_customer;
-                const tipeFaktur = row.TIPE_FAKTUR || row.tipe_faktur || 'Regular';
-                const totalFaktur = parseFloat(row.TOTAL_FAKTUR || row.total_faktur || 0);
-                const diskon = parseFloat(row.DISKON || row.diskon || 0);
-                const netSales = parseFloat(row.NET_SALES || row.net_sales || 0);
-                const gpPercent = parseFloat(row.GP_PERCENT || row.gp_percent || 0);
-                const grossProfit = parseFloat(row.GROSS_PROFIT || row.gross_profit || 0);
+                const raw = data[i];
+                const row = normalizeSalesRow(raw);
+                const noFaktur = row.no_faktur || '';
+                const tanggal = row.tanggal || '';
+                const noCustomer = row.no_customer || '';
+                const tipeFaktur = row.tipe_faktur || 'Regular';
+                const noPart = row.no_part || '';
+                const namaPart = row.nama_part || '';
+                const qty = parseInt(row.qty || row.quantity || 0);
+                const totalFaktur = parseFloat(row.total_faktur || 0);
+                const diskon = parseFloat(row.diskon || 0);
+                const netSales = parseFloat(row.net_sales || 0);
+                const gpPercent = parseFloat(row.gp_percent || row['gp%'] || 0);
+                const grossProfit = parseFloat(row.gross_profit || 0);
+                const groupPart = row.group_part || null;
+                const groupMaterial = row.group_material || row.matgroup_fix || null;
+
+                if (!noFaktur || !tanggal) {
+                    failedCount++;
+                    errors.push({ row: i + 2, error: 'No Faktur atau Tgl Faktur kosong' });
+                    continue;
+                }
 
                 // Find customer
                 const customer = await pool.query('SELECT id FROM customers WHERE no_customer = $1', [noCustomer]);
