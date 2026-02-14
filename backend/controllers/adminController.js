@@ -110,8 +110,9 @@ const getSales = async (req, res, next) => {
 
         // Summary stats
         const summaryQuery = query.replace('SELECT t.*, c.name as customer_name',
-            `SELECT COALESCE(SUM(t.total_faktur), 0) as total_revenue, COUNT(*) as total_transactions,
+            `SELECT COALESCE(SUM(t.total_faktur), 0) as total_sales, COUNT(*) as total_transactions,
        COALESCE(SUM(t.diskon), 0) as total_discount, COALESCE(SUM(t.net_sales), 0) as net_sales,
+       COALESCE(SUM(t.gross_profit), 0) as gross_profit,
        COALESCE(AVG(t.gp_percent), 0) as avg_gp`);
         const summary = await pool.query(summaryQuery, params);
 
