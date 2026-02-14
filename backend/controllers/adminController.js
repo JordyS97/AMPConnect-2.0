@@ -11,11 +11,13 @@ const getDashboard = async (req, res, next) => {
     try {
         const today = new Date().toISOString().split('T')[0];
 
-        // Today's stats
+        // This Month's stats
         const todaySales = await pool.query(
             `SELECT COALESCE(SUM(total_faktur), 0) as total_sales, COUNT(*) as transactions,
        COALESCE(SUM(gross_profit), 0) as gross_profit, COALESCE(AVG(gp_percent), 0) as avg_gp
-       FROM transactions WHERE tanggal = $1`, [today]
+       FROM transactions 
+       WHERE EXTRACT(MONTH FROM tanggal) = EXTRACT(MONTH FROM NOW())
+       AND EXTRACT(YEAR FROM tanggal) = EXTRACT(YEAR FROM NOW())`
         );
 
         // Sales trend last 30 days

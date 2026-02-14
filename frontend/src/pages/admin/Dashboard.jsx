@@ -58,15 +58,15 @@ export default function AdminDashboard() {
         <div>
             <div className="page-header">
                 <h1>Dashboard Admin</h1>
-                <p>Ringkasan data hari ini</p>
+                <p>Ringkasan data bulan ini</p>
             </div>
 
-            {/* Today Stats */}
+            {/* Monthly Stats */}
             <div className="stats-grid">
                 <div className="stat-card">
                     <div className="stat-icon" style={{ background: '#eff6ff' }}><DollarSign size={24} color="var(--primary)" /></div>
                     <div className="stat-value" style={{ fontSize: '1.3rem' }}>{formatCurrency(todayStats.total_sales)}</div>
-                    <div className="stat-label">Penjualan Hari Ini</div>
+                    <div className="stat-label">Penjualan Bulan Ini</div>
                 </div>
                 <div className="stat-card">
                     <div className="stat-icon" style={{ background: '#f0fdf4' }}><ShoppingCart size={24} color="var(--success)" /></div>
