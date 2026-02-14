@@ -346,11 +346,22 @@ const uploadSales = async (req, res, next) => {
                 const tanggal = header.tanggal || null;
                 const noCustomer = header.no_customer || '';
                 const tipeFaktur = header.tipe_faktur || 'Regular';
-                const totalFaktur = parseNum(header.total_faktur);
-                const diskon = parseNum(header.diskon); // Usually invoice level discount
-                const netSales = parseNum(header.net_sales);
-                const gpPercent = parseNum(header.gp_percent);
-                const grossProfit = parseNum(header.gross_profit);
+
+                // Aggregate totals from all items in the invoice
+                let totalFaktur = 0;
+                let diskon = 0;
+                let netSales = 0;
+                let grossProfit = 0;
+
+                for (const item of items) {
+                    totalFaktur += parseNum(item.total_faktur);
+                    diskon += parseNum(item.diskon);
+                    netSales += parseNum(item.net_sales);
+                    grossProfit += parseNum(item.gross_profit);
+                }
+
+                // Calculate GP% based on totals
+                const gpPercent = netSales !== 0 ? (grossProfit / netSales) * 100 : 0;
 
                 if (!tanggal) throw new Error('Tgl Faktur kosong');
 
