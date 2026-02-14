@@ -7,6 +7,9 @@ const { apiLimiter } = require('./middleware/rateLimiter');
 
 const app = express();
 
+// Trust proxy (required for Render, Heroku, etc. behind reverse proxy)
+app.set('trust proxy', 1);
+
 // CORS - support multiple origins including Vercel preview deployments
 const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173').split(',').map(o => o.trim());
 app.use(cors({
