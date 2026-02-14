@@ -396,12 +396,12 @@ const uploadStock = async (req, res, next) => {
         for (let i = 0; i < data.length; i++) {
             try {
                 const row = data[i];
-                const noPart = row.NO_PART || row.no_part;
-                const namaPart = row.NAMA_PART || row.nama_part;
-                const groupPart = row.GROUP_PART || row.group_part || null;
-                const groupMaterial = row.GROUP_MATERIAL || row.group_material || null;
-                const qty = parseInt(row.QTY || row.qty || 0);
-                const amount = parseFloat(row.AMOUNT || row.amount || 0);
+                const noPart = row['NO PART'] || row.NO_PART || row.no_part || '';
+                const namaPart = row['NAMA PART'] || row.NAMA_PART || row.nama_part || '';
+                const groupPart = row['GROUP PART'] || row.GROUP_PART || row.group_part || null;
+                const groupMaterial = row['GROUP MATERIAL'] || row.GROUP_MATERIAL || row.group_material || null;
+                const qty = parseInt(String(row.QTY || row.qty || 0).replace(/,/g, '')) || 0;
+                const amount = parseFloat(String(row.AMOUNT || row.amount || 0).replace(/,/g, '')) || 0;
 
                 await pool.query(
                     `INSERT INTO parts (no_part, nama_part, group_part, group_material, qty, amount, last_updated)

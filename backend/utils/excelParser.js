@@ -79,7 +79,7 @@ const validateSalesColumns = (data) => {
  * Validate stock data columns
  */
 const validateStockColumns = (data) => {
-    const requiredColumns = ['NO_PART', 'NAMA_PART', 'QTY'];
+    const requiredColumns = ['NO PART', 'NAMA PART', 'QTY'];
 
     if (data.length === 0) return { valid: false, missing: requiredColumns };
 
@@ -141,15 +141,17 @@ const createStockTemplate = () => {
     const wb = XLSX.utils.book_new();
     const templateData = [
         {
-            NO_PART: 'HND-001',
-            NAMA_PART: 'Kampas Rem Depan Honda Beat',
-            GROUP_PART: 'Brake System',
-            GROUP_MATERIAL: 'Honda',
-            QTY: 45,
-            AMOUNT: 35000
+            'GROUP PART': 'AHM OIL',
+            'GROUP TOBPM': 'NON TOBPM',
+            'GROUP MATERIAL': 'HND-31D',
+            'NO PART': 'HPC480ML',
+            'NAMA PART': 'HONDA PARTS CLEANER',
+            'QTY': 9,
+            'AMOUNT': 223200,
         }
     ];
     const ws = XLSX.utils.json_to_sheet(templateData);
+    ws['!cols'] = Object.keys(templateData[0]).map(key => ({ wch: Math.max(key.length + 2, 15) }));
     XLSX.utils.book_append_sheet(wb, ws, 'Stock Data');
     return wb;
 };

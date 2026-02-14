@@ -182,7 +182,7 @@ export default function UploadPage() {
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                             {(activeTab === 'sales'
                                 ? ['No Faktur', 'Tgl Faktur', 'Transaksi', 'Tipe Faktur', 'No Customer', 'Customer Name', 'No Part', 'Nama Part', 'Quantity', 'Sales', 'Diskon', 'Total Faktur', 'Net Sales', 'Gross Profit', 'GP%', 'Group Material', 'Group Part']
-                                : ['No Part', 'Nama Part', 'Group Material', 'Group Part', 'Qty']
+                                : ['GROUP PART', 'GROUP TOBPM', 'GROUP MATERIAL', 'NO PART', 'NAMA PART', 'QTY', 'AMOUNT']
                             ).map(col => <span key={col} className="badge badge-info">{col}</span>)}
                         </div>
                     </div>
