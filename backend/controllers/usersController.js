@@ -102,10 +102,16 @@ const editCustomer = async (req, res, next) => {
 };
 
 // Reset customer password
+// Reset customer password
 const resetCustomerPassword = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const { newPassword } = req.body;
+        let { newPassword } = req.body;
+
+        if (!newPassword) {
+            // Generate random 8-char password
+            newPassword = Math.random().toString(36).slice(-8);
+        }
 
         const salt = await bcrypt.genSalt(10);
         const hash = await bcrypt.hash(newPassword, salt);
@@ -117,7 +123,7 @@ const resetCustomerPassword = async (req, res, next) => {
             ['admin', req.user.id, req.user.username, 'Reset Password', `Reset password customer ID ${id}`, req.ip]
         );
 
-        res.json({ success: true, message: 'Password customer berhasil direset.' });
+        res.json({ success: true, message: 'Password customer berhasil direset.', data: { newPassword } });
     } catch (error) {
         next(error);
     }
