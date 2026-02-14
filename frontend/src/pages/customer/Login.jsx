@@ -19,17 +19,19 @@ export default function CustomerLogin() {
         if (!email || !password) { addToast('Silakan isi semua field', 'warning'); return; }
         setLoading(true);
         try {
+            console.log('API Base URL:', import.meta.env.VITE_API_URL || '/api (default)');
             const res = await api.post('/auth/login', { email, password });
             login(res.data.token, res.data.user);
             addToast('Login berhasil! Selamat datang.', 'success');
             navigate('/customer/dashboard');
         } catch (err) {
+            console.error('Login error:', err);
             const data = err.response?.data;
             if (data?.needsVerification) {
                 navigate('/customer/verify-otp', { state: { email: data.email } });
                 return;
             }
-            addToast(data?.message || 'Login gagal', 'error');
+            addToast(data?.message || (err.message?.includes('Network') ? 'Tidak dapat terhubung ke server' : 'Login gagal'), 'error');
         } finally {
             setLoading(false);
         }
