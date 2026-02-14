@@ -238,7 +238,7 @@ const adjustStock = async (req, res, next) => {
     }
 };
 
-// Upload sales data
+// Upload sales data (batch optimized)
 const uploadSales = async (req, res, next) => {
     try {
         if (!req.file) {
@@ -268,77 +268,139 @@ const uploadSales = async (req, res, next) => {
         );
         const uploadId = upload.rows[0].id;
 
+        // 1. Extract and Upsert Customers (Renew IDs/Names)
+        const customerUpserts = new Map(); // Use Map to get unique no_customer
+
+        for (const raw of data) {
+            const row = normalizeSalesRow(raw);
+            const noCustomer = (row.no_customer || '').trim();
+            const customerName = (row.customer_name || row.nama_customer || '').trim();
+
+            if (noCustomer) {
+                // If we haven't seen this customer yet, or if this row has a name and the previous didn't
+                if (!customerUpserts.has(noCustomer) || (customerName && !customerUpserts.get(noCustomer))) {
+                    customerUpserts.set(noCustomer, customerName || `Customer ${noCustomer}`);
+                }
+            }
+        }
+
+        if (customerUpserts.size > 0) {
+            const customerValues = [];
+            const customerPlaceholders = [];
+            let cState = 1;
+
+            for (const [noCust, name] of customerUpserts) {
+                customerPlaceholders.push(`($${cState}, $${cState + 1})`);
+                customerValues.push(noCust, name);
+                cState += 2;
+            }
+
+            // Batch upsert customers in chunks of 500 to avoid query parameter limits
+            const CUST_BATCH_SIZE = 500;
+            for (let i = 0; i < customerPlaceholders.length; i += CUST_BATCH_SIZE) {
+                const chunkPlaceholders = customerPlaceholders.slice(i, i + CUST_BATCH_SIZE);
+                const chunkValues = customerValues.slice(i * 2, (i + CUST_BATCH_SIZE) * 2);
+
+                await pool.query(
+                    `INSERT INTO customers (no_customer, name) VALUES ${chunkPlaceholders.join(', ')}
+                     ON CONFLICT (no_customer) DO UPDATE SET name = EXCLUDED.name, updated_at = NOW()`,
+                    chunkValues
+                );
+            }
+        }
+
+        // 2. Pre-cache all customers (now including the newly created/updated ones)
+        const allCustomers = await pool.query('SELECT id, no_customer FROM customers');
+        const customerMap = {};
+        allCustomers.rows.forEach(c => { customerMap[c.no_customer] = c.id; });
+
         let successCount = 0;
         let failedCount = 0;
         const errors = [];
+        const parseNum = (v) => { const s = String(v || 0).replace(/,/g, '').replace(/%/g, '').trim(); return parseFloat(s) || 0; };
+        const affectedCustomerIds = new Set();
 
-        for (let i = 0; i < data.length; i++) {
-            try {
-                const raw = data[i];
-                const row = normalizeSalesRow(raw);
-                const noFaktur = row.no_faktur || '';
-                const tanggal = row.tanggal || '';
-                const noCustomer = row.no_customer || '';
-                const tipeFaktur = row.tipe_faktur || 'Regular';
-                const noPart = row.no_part || '';
-                const namaPart = row.nama_part || '';
-                const parseNum = (v) => { const s = String(v || 0).replace(/,/g, '').replace(/%/g, '').trim(); return parseFloat(s) || 0; };
-                const qty = parseInt(parseNum(row.qty || row.quantity));
-                const totalFaktur = parseNum(row.total_faktur);
-                const diskon = parseNum(row.diskon);
-                const netSales = parseNum(row.net_sales);
-                const gpPercent = parseNum(row.gp_percent);
-                const grossProfit = parseNum(row.gross_profit);
-                const groupPart = (row.group_part || '').trim() || null;
-                const groupMaterial = (row.group_material || row.matgroup_fix || '').trim() || null;
+        // Process in batches of 100
+        const BATCH_SIZE = 100;
+        for (let batchStart = 0; batchStart < data.length; batchStart += BATCH_SIZE) {
+            const batch = data.slice(batchStart, batchStart + BATCH_SIZE);
+            const values = [];
+            const placeholders = [];
+            let paramIdx = 1;
 
-                if (!noFaktur || !tanggal) {
+            for (let i = 0; i < batch.length; i++) {
+                try {
+                    const row = normalizeSalesRow(batch[i]);
+                    const noFaktur = row.no_faktur || '';
+                    const tanggal = row.tanggal || '';
+                    const noCustomer = row.no_customer || '';
+                    const tipeFaktur = row.tipe_faktur || 'Regular';
+                    const totalFaktur = parseNum(row.total_faktur);
+                    const diskon = parseNum(row.diskon);
+                    const netSales = parseNum(row.net_sales);
+                    const gpPercent = parseNum(row.gp_percent);
+                    const grossProfit = parseNum(row.gross_profit);
+
+                    if (!noFaktur || !tanggal) {
+                        failedCount++;
+                        errors.push({ row: batchStart + i + 2, error: 'No Faktur atau Tgl Faktur kosong' });
+                        continue;
+                    }
+
+                    const customerId = customerMap[noCustomer] || null;
+                    const pointsEarned = calculatePoints(netSales);
+
+                    if (customerId) affectedCustomerIds.add(customerId);
+
+                    placeholders.push(`($${paramIdx}, $${paramIdx + 1}, $${paramIdx + 2}, $${paramIdx + 3}, $${paramIdx + 4}, $${paramIdx + 5}, $${paramIdx + 6}, $${paramIdx + 7}, $${paramIdx + 8}, $${paramIdx + 9}, $${paramIdx + 10})`);
+                    values.push(noFaktur, tanggal, customerId, noCustomer, tipeFaktur, totalFaktur, diskon, netSales, gpPercent, grossProfit, pointsEarned);
+                    paramIdx += 11;
+                    successCount++;
+                } catch (err) {
                     failedCount++;
-                    errors.push({ row: i + 2, error: 'No Faktur atau Tgl Faktur kosong' });
-                    continue;
+                    errors.push({ row: batchStart + i + 2, error: err.message });
                 }
-
-                // Find customer
-                const customer = await pool.query('SELECT id FROM customers WHERE no_customer = $1', [noCustomer]);
-                const customerId = customer.rows.length > 0 ? customer.rows[0].id : null;
-
-                // Calculate points
-                const pointsEarned = calculatePoints(netSales);
-
-                // Upsert transaction
-                await pool.query(
-                    `INSERT INTO transactions (no_faktur, tanggal, customer_id, no_customer, tipe_faktur, total_faktur, diskon, net_sales, gp_percent, gross_profit, points_earned)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-           ON CONFLICT (no_faktur) DO UPDATE SET
-           tanggal = $2, customer_id = $3, tipe_faktur = $5, total_faktur = $6, diskon = $7, net_sales = $8, gp_percent = $9, gross_profit = $10, points_earned = $11`,
-                    [noFaktur, tanggal, customerId, noCustomer, tipeFaktur, totalFaktur, diskon, netSales, gpPercent, grossProfit, pointsEarned]
-                );
-
-                // Update customer points and tier
-                if (customerId) {
-                    const totalPoints = await pool.query(
-                        'SELECT COALESCE(SUM(points_earned), 0) as total FROM transactions WHERE customer_id = $1', [customerId]
-                    );
-                    const newTotalPoints = parseInt(totalPoints.rows[0].total);
-                    const newTier = determineTier(newTotalPoints);
-
-                    await pool.query(
-                        'UPDATE customers SET total_points = $1, tier = $2, updated_at = NOW() WHERE id = $3',
-                        [newTotalPoints, newTier, customerId]
-                    );
-                }
-
-                successCount++;
-            } catch (err) {
-                failedCount++;
-                errors.push({ row: i + 2, error: err.message });
             }
+
+            if (placeholders.length > 0) {
+                try {
+                    await pool.query(
+                        `INSERT INTO transactions (no_faktur, tanggal, customer_id, no_customer, tipe_faktur, total_faktur, diskon, net_sales, gp_percent, gross_profit, points_earned)
+                         VALUES ${placeholders.join(', ')}
+                         ON CONFLICT (no_faktur) DO UPDATE SET
+                         tanggal = EXCLUDED.tanggal, customer_id = EXCLUDED.customer_id, tipe_faktur = EXCLUDED.tipe_faktur,
+                         total_faktur = EXCLUDED.total_faktur, diskon = EXCLUDED.diskon, net_sales = EXCLUDED.net_sales,
+                         gp_percent = EXCLUDED.gp_percent, gross_profit = EXCLUDED.gross_profit, points_earned = EXCLUDED.points_earned`,
+                        values
+                    );
+                } catch (err) {
+                    // If batch fails, count all as failed
+                    successCount -= placeholders.length;
+                    failedCount += placeholders.length;
+                    errors.push({ row: `${batchStart + 2}-${batchStart + batch.length + 1}`, error: err.message });
+                }
+            }
+        }
+
+        // Update customer points and tiers in one pass at the end
+        for (const customerId of affectedCustomerIds) {
+            try {
+                const totalPoints = await pool.query(
+                    'SELECT COALESCE(SUM(points_earned), 0) as total FROM transactions WHERE customer_id = $1', [customerId]
+                );
+                const newTotalPoints = parseInt(totalPoints.rows[0].total);
+                const newTier = determineTier(newTotalPoints);
+                await pool.query(
+                    'UPDATE customers SET total_points = $1, tier = $2, updated_at = NOW() WHERE id = $3',
+                    [newTotalPoints, newTier, customerId]
+                );
+            } catch (err) { /* ignore tier update errors */ }
         }
 
         // Update upload history
         await pool.query(
             `UPDATE upload_history SET success_count = $1, failed_count = $2, status = $3, error_log = $4 WHERE id = $5`,
-            [successCount, failedCount, failedCount > 0 && successCount === 0 ? 'failed' : 'completed', JSON.stringify(errors), uploadId]
+            [successCount, failedCount, failedCount > 0 && successCount === 0 ? 'failed' : 'completed', JSON.stringify(errors.slice(0, 50)), uploadId]
         );
 
         // Log activity
@@ -352,8 +414,8 @@ const uploadSales = async (req, res, next) => {
 
         res.json({
             success: true,
-            message: 'Data penjualan berhasil diproses.',
-            data: { rows_processed: data.length, success_count: successCount, failed_count: failedCount, errors }
+            message: `Data penjualan berhasil diproses. ${successCount} berhasil, ${failedCount} gagal.`,
+            data: { rows_processed: data.length, success_count: successCount, failed_count: failedCount, errors: errors.slice(0, 20) }
         });
     } catch (error) {
         next(error);
