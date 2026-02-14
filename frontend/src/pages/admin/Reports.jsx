@@ -25,7 +25,7 @@ export default function Reports() {
         setLoading(true);
         setReportData(null);
         try {
-            const res = await api.get(`/admin/reports/${type}`, { params: filters });
+            const res = await api.post('/admin/reports/generate', { type, ...filters });
             setReportData(res.data.data);
         } catch (err) {
             addToast('Gagal menghasilkan laporan', 'error');

@@ -637,7 +637,7 @@ const generateReport = async (req, res, next) => {
                 params
             );
 
-            reportData = { summary: summary.rows[0], transactions: transactions.rows };
+            reportData = { summary: summary.rows[0], tableData: transactions.rows };
         } else if (type === 'stock') {
             const stock = await pool.query('SELECT * FROM parts ORDER BY no_part');
             const overview = await pool.query(
@@ -645,14 +645,14 @@ const generateReport = async (req, res, next) => {
          SUM(CASE WHEN qty > 0 AND qty <= 20 THEN 1 ELSE 0 END) as low_stock,
          SUM(CASE WHEN qty = 0 THEN 1 ELSE 0 END) as out_of_stock FROM parts`
             );
-            reportData = { overview: overview.rows[0], parts: stock.rows };
+            reportData = { overview: overview.rows[0], tableData: stock.rows };
         } else if (type === 'customer') {
             const customers = await pool.query(
                 `SELECT c.*, COALESCE(SUM(t.net_sales), 0) as total_spent, COUNT(t.id) as transaction_count
          FROM customers c LEFT JOIN transactions t ON c.id = t.customer_id
          GROUP BY c.id ORDER BY total_spent DESC`
             );
-            reportData = { customers: customers.rows };
+            reportData = { tableData: customers.rows };
         } else if (type === 'profit') {
             let query = `SELECT TO_CHAR(tanggal, 'YYYY-MM') as period, SUM(gross_profit) as profit, 
                    AVG(gp_percent) as avg_gp, SUM(net_sales) as revenue
@@ -664,7 +664,7 @@ const generateReport = async (req, res, next) => {
             query += ` GROUP BY TO_CHAR(tanggal, 'YYYY-MM') ORDER BY period`;
 
             const profitByPeriod = await pool.query(query, params);
-            reportData = { profitByPeriod: profitByPeriod.rows };
+            reportData = { tableData: profitByPeriod.rows };
         }
 
         res.json({ success: true, data: reportData });
