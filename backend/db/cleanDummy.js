@@ -85,6 +85,15 @@ async function cleanDummy() {
         );
         console.log(`   ✅ Cleaned up dummy OTP codes`);
 
+        // 7. Clean up upload history
+        const delUploads = await client.query('DELETE FROM upload_history');
+        console.log(`   ✅ Deleted ${delUploads.rowCount} upload history records`);
+
+        // 8. Clean up activity logs (keep admin logs if desired, or delete all non-admin)
+        // Deleting logs for dummy customers or general cleanup
+        const delLogs = await client.query("DELETE FROM activity_logs WHERE user_type = 'customer' OR description LIKE '%seed%'");
+        console.log(`   ✅ Deleted ${delLogs.rowCount} customer activity logs`);
+
         await client.query('COMMIT');
 
         // Show what remains
