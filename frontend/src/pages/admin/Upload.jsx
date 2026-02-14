@@ -162,12 +162,18 @@ export default function UploadPage() {
                                     {result.data.skipped > 0 && <> | ⚠️ {result.data.skipped} data dilewati</>}
                                 </p>
                             )}
-                            {result.errors?.length > 0 && (
+                            {(result.errors?.length > 0 || result.data?.errors?.length > 0) && (
                                 <div style={{ marginTop: 8 }}>
                                     <p style={{ fontSize: '0.85rem', fontWeight: 500, color: 'var(--danger)' }}>Error:</p>
                                     <ul style={{ paddingLeft: 20, fontSize: '0.85rem' }}>
-                                        {result.errors.slice(0, 5).map((e, i) => <li key={i} style={{ color: '#b91c1c' }}>{e}</li>)}
-                                        {result.errors.length > 5 && <li>...dan {result.errors.length - 5} error lainnya</li>}
+                                        {(result.errors || result.data.errors).slice(0, 5).map((e, i) => (
+                                            <li key={i} style={{ color: '#b91c1c' }}>
+                                                {typeof e === 'string' ? e : `Row ${e.row}: ${e.error}`}
+                                            </li>
+                                        ))}
+                                        {(result.errors || result.data.errors).length > 5 && (
+                                            <li>...dan {(result.errors || result.data.errors).length - 5} error lainnya</li>
+                                        )}
                                     </ul>
                                 </div>
                             )}

@@ -5,10 +5,10 @@ const path = require('path');
  * Parse Excel/CSV file and return array of objects
  */
 const parseExcelFile = (filePath) => {
-    const workbook = XLSX.readFile(filePath);
+    const workbook = XLSX.readFile(filePath, { cellDates: true });
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
-    const data = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+    const data = XLSX.utils.sheet_to_json(worksheet, { defval: '', raw: false });
     return data;
 };
 
