@@ -13,7 +13,7 @@ const getDashboard = async (req, res, next) => {
 
         // This Month's stats
         const todaySales = await pool.query(
-            `SELECT COALESCE(SUM(total_faktur), 0) as total_sales, COUNT(*) as transactions,
+            `SELECT COALESCE(SUM(net_sales), 0) as total_sales, COUNT(*) as transactions,
        COALESCE(SUM(gross_profit), 0) as gross_profit, COALESCE(AVG(gp_percent), 0) as avg_gp
        FROM transactions 
        WHERE EXTRACT(MONTH FROM tanggal) = EXTRACT(MONTH FROM NOW())
@@ -38,14 +38,14 @@ const getDashboard = async (req, res, next) => {
        GROUP BY p.group_tobpm ORDER BY total DESC`
         );
 
-        // Top 10 best selling parts (current month)
+        // Top 10 best selling parts (revenue) (current month)
         const topParts = await pool.query(
-            `SELECT ti.nama_part, SUM(ti.qty) as total_qty
+            `SELECT ti.nama_part, SUM(ti.subtotal) as total_value
        FROM transaction_items ti
        JOIN transactions t ON ti.transaction_id = t.id
        WHERE EXTRACT(MONTH FROM t.tanggal) = EXTRACT(MONTH FROM NOW())
        AND EXTRACT(YEAR FROM t.tanggal) = EXTRACT(YEAR FROM NOW())
-       GROUP BY ti.nama_part ORDER BY total_qty DESC LIMIT 10`
+       GROUP BY ti.nama_part ORDER BY total_value DESC LIMIT 10`
         );
 
         // Monthly comparison (this month vs last month)

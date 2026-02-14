@@ -46,7 +46,7 @@ export default function AdminDashboard() {
 
     const barData = {
         labels: topParts.map(p => p.nama_part.length > 20 ? p.nama_part.slice(0, 20) + '...' : p.nama_part),
-        datasets: [{ label: 'Qty Terjual', data: topParts.map(p => p.total_qty), backgroundColor: '#7c3aed', borderRadius: 6 }],
+        datasets: [{ label: 'Revenue', data: topParts.map(p => p.total_value), backgroundColor: '#7c3aed', borderRadius: 6 }],
     };
 
     const compData = {
