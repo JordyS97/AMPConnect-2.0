@@ -16,7 +16,7 @@ const app = express();
 app.set('trust proxy', 1);
 
 // CORS - support multiple origins including Vercel preview deployments
-const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173').split(',').map(o => o.trim());
+const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173,https://ampconnect.vercel.app').split(',').map(o => o.trim());
 app.use(cors({
     origin: function (origin, callback) {
         // Allow requests with no origin (mobile apps, curl, etc.)
