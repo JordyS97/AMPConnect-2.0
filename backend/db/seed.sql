@@ -1,0 +1,138 @@
+-- AMPConnect Seed Data
+-- Password for all users: password123 (bcrypt hash)
+-- Admin password: admin123
+
+-- Insert admin (password: admin123)
+INSERT INTO admins (username, email, password_hash, role, status) VALUES
+('admin', 'admin@ampconnect.com', '$2a$10$8K1p/a0dL1LXMIgoEDFrwOflnmXEBMwzSGqIjiMPjUdSMkuUcMHmi', 'super_admin', 'active'),
+('manager', 'manager@ampconnect.com', '$2a$10$8K1p/a0dL1LXMIgoEDFrwOflnmXEBMwzSGqIjiMPjUdSMkuUcMHmi', 'admin', 'active');
+
+-- Insert customers
+-- Silver tier (0-499 points): CUST001, CUST002
+-- Gold tier (500-1499 points): CUST003, CUST004
+-- Diamond tier (1500+ points): CUST005
+INSERT INTO customers (no_customer, name, email, phone, address, password_hash, total_points, tier, is_verified, status) VALUES
+('CUST001', 'Budi Santoso', 'budi@email.com', '081234567890', 'Jl. Merdeka No. 10, Bima', '$2a$10$rQnM1kGJ8YvP0x5qO2EwYe0sGm5nPxj6JvMFJ0xhHq.W/PBkXKpGy', 150, 'Silver', true, 'active'),
+('CUST002', 'Siti Rahayu', 'siti@email.com', '081234567891', 'Jl. Soekarno No. 25, Bima', '$2a$10$rQnM1kGJ8YvP0x5qO2EwYe0sGm5nPxj6JvMFJ0xhHq.W/PBkXKpGy', 320, 'Silver', true, 'active'),
+('CUST003', 'Ahmad Wijaya', 'ahmad@email.com', '081234567892', 'Jl. Diponegoro No. 5, Bima', '$2a$10$rQnM1kGJ8YvP0x5qO2EwYe0sGm5nPxj6JvMFJ0xhHq.W/PBkXKpGy', 750, 'Gold', true, 'active'),
+('CUST004', 'Dewi Lestari', 'dewi@email.com', '081234567893', 'Jl. Sudirman No. 15, Bima', '$2a$10$rQnM1kGJ8YvP0x5qO2EwYe0sGm5nPxj6JvMFJ0xhHq.W/PBkXKpGy', 1100, 'Gold', true, 'active'),
+('CUST005', 'Rudi Hermawan', 'rudi@email.com', '081234567894', 'Jl. Kartini No. 30, Bima', '$2a$10$rQnM1kGJ8YvP0x5qO2EwYe0sGm5nPxj6JvMFJ0xhHq.W/PBkXKpGy', 2500, 'Diamond', true, 'active');
+
+-- Insert 50 parts
+INSERT INTO parts (no_part, nama_part, group_part, group_material, qty, amount) VALUES
+('HND-001', 'Kampas Rem Depan Honda Beat', 'Brake System', 'Honda', 45, 35000),
+('HND-002', 'Kampas Rem Belakang Honda Beat', 'Brake System', 'Honda', 30, 32000),
+('HND-003', 'Oli Mesin Honda 0.8L', 'Engine Oil', 'Honda', 100, 45000),
+('HND-004', 'Filter Udara Honda Vario', 'Filter', 'Honda', 25, 28000),
+('HND-005', 'Busi NGK Honda', 'Ignition', 'Honda', 60, 22000),
+('HND-006', 'Rantai Kit Honda Supra', 'Chain Kit', 'Honda', 15, 185000),
+('HND-007', 'Ban Luar IRC 80/90', 'Tire', 'Honda', 8, 165000),
+('HND-008', 'Ban Dalam IRC 80/90', 'Tire', 'Honda', 12, 45000),
+('HND-009', 'Lampu Depan LED Honda', 'Electrical', 'Honda', 0, 125000),
+('HND-010', 'Aki Yuasa Honda Beat', 'Electrical', 'Honda', 18, 195000),
+('YMH-001', 'Kampas Rem Depan Yamaha Mio', 'Brake System', 'Yamaha', 38, 33000),
+('YMH-002', 'Kampas Rem Belakang Yamaha NMAX', 'Brake System', 'Yamaha', 22, 38000),
+('YMH-003', 'Oli Mesin Yamalube 0.8L', 'Engine Oil', 'Yamaha', 85, 48000),
+('YMH-004', 'Filter Udara Yamaha NMAX', 'Filter', 'Yamaha', 5, 35000),
+('YMH-005', 'Busi Iridium Yamaha', 'Ignition', 'Yamaha', 40, 65000),
+('YMH-006', 'Rantai Kit Yamaha Jupiter', 'Chain Kit', 'Yamaha', 10, 195000),
+('YMH-007', 'V-Belt Yamaha Mio', 'Transmission', 'Yamaha', 0, 145000),
+('YMH-008', 'Roller Yamaha Mio', 'Transmission', 'Yamaha', 35, 55000),
+('YMH-009', 'Lampu Depan LED Yamaha', 'Electrical', 'Yamaha', 7, 135000),
+('YMH-010', 'Aki GS Yamaha NMAX', 'Electrical', 'Yamaha', 14, 225000),
+('SZK-001', 'Kampas Rem Depan Suzuki Satria', 'Brake System', 'Suzuki', 28, 36000),
+('SZK-002', 'Oli Mesin Suzuki 0.8L', 'Engine Oil', 'Suzuki', 55, 42000),
+('SZK-003', 'Filter Udara Suzuki Satria', 'Filter', 'Suzuki', 3, 30000),
+('SZK-004', 'Busi NGK Suzuki', 'Ignition', 'Suzuki', 50, 22000),
+('SZK-005', 'Rantai Kit Suzuki Satria', 'Chain Kit', 'Suzuki', 0, 210000),
+('KWS-001', 'Kampas Rem Depan Kawasaki Ninja', 'Brake System', 'Kawasaki', 20, 45000),
+('KWS-002', 'Oli Mesin Kawasaki 1L', 'Engine Oil', 'Kawasaki', 40, 65000),
+('KWS-003', 'Filter Oli Kawasaki', 'Filter', 'Kawasaki', 30, 25000),
+('KWS-004', 'Busi Iridium Kawasaki', 'Ignition', 'Kawasaki', 25, 75000),
+('KWS-005', 'Rantai Kit Kawasaki Ninja', 'Chain Kit', 'Kawasaki', 6, 285000),
+('UNV-001', 'Minyak Rem DOT 3 300ml', 'Brake System', 'Universal', 70, 18000),
+('UNV-002', 'Gemuk/Grease 500gr', 'Lubricant', 'Universal', 45, 25000),
+('UNV-003', 'Cairan Pembersih Karburator', 'Cleaner', 'Universal', 55, 35000),
+('UNV-004', 'Kabel Gas Universal', 'Cable', 'Universal', 18, 22000),
+('UNV-005', 'Kabel Kopling Universal', 'Cable', 'Universal', 12, 28000),
+('UNV-006', 'Kabel Rem Universal', 'Cable', 'Universal', 16, 20000),
+('UNV-007', 'Spion Motor Universal Kiri', 'Mirror', 'Universal', 32, 35000),
+('UNV-008', 'Spion Motor Universal Kanan', 'Mirror', 'Universal', 30, 35000),
+('UNV-009', 'Lampu Sein LED Universal', 'Electrical', 'Universal', 0, 45000),
+('UNV-010', 'Klakson Motor Universal', 'Electrical', 'Universal', 22, 55000),
+('HND-011', 'Piston Kit Honda Beat', 'Engine', 'Honda', 9, 125000),
+('HND-012', 'Gasket Head Honda Beat', 'Engine', 'Honda', 20, 45000),
+('HND-013', 'Seal Shock Depan Honda', 'Suspension', 'Honda', 15, 35000),
+('HND-014', 'Per Kopling Honda Supra', 'Clutch', 'Honda', 10, 55000),
+('HND-015', 'Bearing Roda Honda', 'Wheel', 'Honda', 24, 38000),
+('YMH-011', 'Piston Kit Yamaha Mio', 'Engine', 'Yamaha', 7, 135000),
+('YMH-012', 'Gasket Set Yamaha NMAX', 'Engine', 'Yamaha', 2, 85000),
+('YMH-013', 'Seal Shock Depan Yamaha', 'Suspension', 'Yamaha', 11, 40000),
+('YMH-014', 'Kampas Kopling Yamaha Jupiter', 'Clutch', 'Yamaha', 19, 65000),
+('YMH-015', 'Bearing Roda Yamaha', 'Wheel', 'Yamaha', 28, 35000);
+
+-- Insert 20 transactions
+INSERT INTO transactions (no_faktur, tanggal, customer_id, no_customer, tipe_faktur, total_faktur, diskon, net_sales, gp_percent, gross_profit, points_earned) VALUES
+('INV-2026-001', '2026-01-05', 1, 'CUST001', 'Regular', 850000, 50000, 800000, 25.5, 204000, 1),
+('INV-2026-002', '2026-01-08', 2, 'CUST002', 'Regular', 1250000, 100000, 1150000, 28.0, 322000, 2),
+('INV-2026-003', '2026-01-10', 3, 'CUST003', 'Regular', 2500000, 200000, 2300000, 30.5, 701500, 4),
+('INV-2026-004', '2026-01-12', 4, 'CUST004', 'Workshop', 3200000, 150000, 3050000, 32.0, 976000, 6),
+('INV-2026-005', '2026-01-15', 5, 'CUST005', 'Regular', 5500000, 500000, 5000000, 27.5, 1375000, 10),
+('INV-2026-006', '2026-01-18', 1, 'CUST001', 'Regular', 450000, 0, 450000, 22.0, 99000, 0),
+('INV-2026-007', '2026-01-20', 3, 'CUST003', 'Workshop', 1800000, 100000, 1700000, 29.0, 493000, 3),
+('INV-2026-008', '2026-01-22', 2, 'CUST002', 'Regular', 650000, 50000, 600000, 26.5, 159000, 1),
+('INV-2026-009', '2026-01-25', 5, 'CUST005', 'Regular', 4200000, 300000, 3900000, 31.0, 1209000, 7),
+('INV-2026-010', '2026-01-28', 4, 'CUST004', 'Regular', 1500000, 100000, 1400000, 28.5, 399000, 2),
+('INV-2026-011', '2026-02-01', 1, 'CUST001', 'Regular', 980000, 80000, 900000, 24.0, 216000, 1),
+('INV-2026-012', '2026-02-03', 3, 'CUST003', 'Workshop', 3100000, 200000, 2900000, 33.0, 957000, 5),
+('INV-2026-013', '2026-02-05', 2, 'CUST002', 'Regular', 720000, 50000, 670000, 25.0, 167500, 1),
+('INV-2026-014', '2026-02-07', 5, 'CUST005', 'Regular', 6000000, 400000, 5600000, 29.5, 1652000, 11),
+('INV-2026-015', '2026-02-08', 4, 'CUST004', 'Workshop', 2800000, 200000, 2600000, 30.0, 780000, 5),
+('INV-2026-016', '2026-02-10', 1, 'CUST001', 'Regular', 550000, 0, 550000, 23.0, 126500, 1),
+('INV-2026-017', '2026-02-11', 2, 'CUST002', 'Regular', 890000, 90000, 800000, 27.0, 216000, 1),
+('INV-2026-018', '2026-02-12', 3, 'CUST003', 'Regular', 1600000, 100000, 1500000, 28.0, 420000, 3),
+('INV-2026-019', '2026-02-13', 5, 'CUST005', 'Workshop', 7500000, 500000, 7000000, 32.5, 2275000, 14),
+('INV-2026-020', '2026-02-14', 4, 'CUST004', 'Regular', 1200000, 100000, 1100000, 26.0, 286000, 2);
+
+-- Insert transaction items
+INSERT INTO transaction_items (transaction_id, no_part, nama_part, qty, price, subtotal) VALUES
+(1, 'HND-001', 'Kampas Rem Depan Honda Beat', 2, 35000, 70000),
+(1, 'HND-003', 'Oli Mesin Honda 0.8L', 3, 45000, 135000),
+(1, 'HND-005', 'Busi NGK Honda', 2, 22000, 44000),
+(2, 'YMH-003', 'Oli Mesin Yamalube 0.8L', 5, 48000, 240000),
+(2, 'YMH-005', 'Busi Iridium Yamaha', 3, 65000, 195000),
+(3, 'HND-006', 'Rantai Kit Honda Supra', 2, 185000, 370000),
+(3, 'HND-010', 'Aki Yuasa Honda Beat', 3, 195000, 585000),
+(4, 'YMH-006', 'Rantai Kit Yamaha Jupiter', 2, 195000, 390000),
+(4, 'YMH-010', 'Aki GS Yamaha NMAX', 4, 225000, 900000),
+(5, 'KWS-005', 'Rantai Kit Kawasaki Ninja', 3, 285000, 855000),
+(5, 'KWS-002', 'Oli Mesin Kawasaki 1L', 10, 65000, 650000),
+(6, 'HND-001', 'Kampas Rem Depan Honda Beat', 3, 35000, 105000),
+(6, 'UNV-001', 'Minyak Rem DOT 3 300ml', 5, 18000, 90000),
+(7, 'HND-011', 'Piston Kit Honda Beat', 2, 125000, 250000),
+(7, 'HND-012', 'Gasket Head Honda Beat', 3, 45000, 135000),
+(8, 'YMH-001', 'Kampas Rem Depan Yamaha Mio', 4, 33000, 132000),
+(9, 'KWS-001', 'Kampas Rem Depan Kawasaki Ninja', 5, 45000, 225000),
+(9, 'KWS-004', 'Busi Iridium Kawasaki', 8, 75000, 600000),
+(10, 'YMH-007', 'V-Belt Yamaha Mio', 3, 145000, 435000),
+(10, 'YMH-008', 'Roller Yamaha Mio', 5, 55000, 275000),
+(11, 'HND-003', 'Oli Mesin Honda 0.8L', 4, 45000, 180000),
+(11, 'HND-004', 'Filter Udara Honda Vario', 2, 28000, 56000),
+(12, 'SZK-001', 'Kampas Rem Depan Suzuki Satria', 6, 36000, 216000),
+(12, 'SZK-002', 'Oli Mesin Suzuki 0.8L', 8, 42000, 336000),
+(13, 'UNV-007', 'Spion Motor Universal Kiri', 2, 35000, 70000),
+(13, 'UNV-008', 'Spion Motor Universal Kanan', 2, 35000, 70000),
+(14, 'HND-007', 'Ban Luar IRC 80/90', 4, 165000, 660000),
+(14, 'HND-008', 'Ban Dalam IRC 80/90', 4, 45000, 180000),
+(15, 'YMH-011', 'Piston Kit Yamaha Mio', 3, 135000, 405000),
+(15, 'YMH-012', 'Gasket Set Yamaha NMAX', 2, 85000, 170000),
+(16, 'UNV-003', 'Cairan Pembersih Karburator', 3, 35000, 105000),
+(16, 'UNV-002', 'Gemuk/Grease 500gr', 4, 25000, 100000),
+(17, 'HND-013', 'Seal Shock Depan Honda', 4, 35000, 140000),
+(17, 'HND-015', 'Bearing Roda Honda', 5, 38000, 190000),
+(18, 'KWS-003', 'Filter Oli Kawasaki', 6, 25000, 150000),
+(18, 'KWS-002', 'Oli Mesin Kawasaki 1L', 5, 65000, 325000),
+(19, 'HND-006', 'Rantai Kit Honda Supra', 5, 185000, 925000),
+(19, 'YMH-006', 'Rantai Kit Yamaha Jupiter', 4, 195000, 780000),
+(20, 'UNV-004', 'Kabel Gas Universal', 3, 22000, 66000),
+(20, 'UNV-005', 'Kabel Kopling Universal', 4, 28000, 112000);
