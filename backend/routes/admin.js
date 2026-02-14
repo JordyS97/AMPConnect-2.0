@@ -9,7 +9,7 @@ const {
     uploadSales, uploadStock, getUploadHistory, downloadTemplate, generateReport
 } = require('../controllers/adminController');
 const {
-    getCustomers, addCustomer, editCustomer, resetCustomerPassword, toggleCustomerStatus,
+    getCustomers, addCustomer, editCustomer, resetCustomerPassword, toggleCustomerStatus, deleteCustomer, uploadCustomers,
     getAdmins, createAdmin, editAdmin, getActivityLogs
 } = require('../controllers/usersController');
 
@@ -56,9 +56,11 @@ router.get('/upload/template/:type', downloadTemplate);
 // Users - Customers
 router.get('/users/customers', getCustomers);
 router.post('/users/customers', addCustomer);
+router.post('/users/customers/upload', uploadLimiter, upload.single('file'), uploadCustomers);
 router.put('/users/customers/:id', editCustomer);
 router.put('/users/customers/:id/reset-password', resetCustomerPassword);
 router.put('/users/customers/:id/status', toggleCustomerStatus);
+router.delete('/users/customers/:id', deleteCustomer);
 
 // Users - Admins
 router.get('/users/admins', getAdmins);

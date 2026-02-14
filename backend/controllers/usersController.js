@@ -1,5 +1,7 @@
 const bcrypt = require('bcryptjs');
+const fs = require('fs');
 const pool = require('../config/db');
+const { parseExcelFile } = require('../utils/excelParser');
 
 // Get customers list
 const getCustomers = async (req, res, next) => {
@@ -253,7 +255,134 @@ const getActivityLogs = async (req, res, next) => {
     }
 };
 
+// Delete customer
+const deleteCustomer = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+
+        // Check for transaction history
+        const tx = await pool.query('SELECT id FROM transactions WHERE customer_id = $1 LIMIT 1', [id]);
+        if (tx.rows.length > 0) {
+            return res.status(400).json({ success: false, message: 'Tidak dapat menghapus customer yang memiliki riwayat transaksi. Nonaktifkan status customer sebagai gantinya.' });
+        }
+
+        await pool.query('DELETE FROM customers WHERE id = $1', [id]);
+
+        await pool.query(
+            `INSERT INTO activity_logs (user_type, user_id, user_name, action, description, ip_address) VALUES ($1, $2, $3, $4, $5, $6)`,
+            ['admin', req.user.id, req.user.username, 'Delete Customer', `Menghapus customer ID ${id}`, req.ip]
+        );
+
+        res.json({ success: true, message: 'Customer berhasil dihapus.' });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// Upload customers (Bulk Import)
+const uploadCustomers = async (req, res, next) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ success: false, message: 'File tidak ditemukan.' });
+        }
+
+        const filePath = req.file.path;
+        let data;
+        try {
+            data = parseExcelFile(filePath);
+        } catch (e) {
+            fs.unlinkSync(filePath);
+            return res.status(400).json({ success: false, message: 'File tidak dapat dibaca. Pastikan format .xlsx atau .csv.' });
+        }
+
+        if (data.length === 0) {
+            fs.unlinkSync(filePath);
+            return res.status(400).json({ success: false, message: 'File kosong.' });
+        }
+
+        let successCount = 0;
+        let failedCount = 0;
+        const errors = [];
+        const customerUpserts = new Map();
+
+        for (let i = 0; i < data.length; i++) {
+            const raw = data[i];
+            // Normalize keys: No Customer, Customer Name, Nama, etc.
+            const row = {};
+            for (const [key, val] of Object.entries(raw)) {
+                row[key.trim().toLowerCase().replace(/\s+/g, '_')] = val;
+            }
+
+            const noCustomer = String(row.no_customer || row.no_cust || '').trim();
+            const name = String(row.customer_name || row.nama_customer || row.nama || row.customer || '').trim();
+            const email = String(row.email || '').trim() || null;
+            const phone = String(row.phone || row.telepon || row.no_telp || '').trim() || null;
+            const address = String(row.address || row.alamat || '').trim() || null;
+
+            if (noCustomer) {
+                if (!customerUpserts.has(noCustomer)) {
+                    customerUpserts.set(noCustomer, { name: name || `Customer ${noCustomer}`, email, phone, address });
+                }
+            } else {
+                failedCount++;
+                errors.push({ row: i + 2, error: 'No Customer kosong' });
+            }
+        }
+
+        // Bulk Upsert
+        if (customerUpserts.size > 0) {
+            const values = [];
+            const placeholders = [];
+            let i = 1;
+
+            for (const [noCust, info] of customerUpserts) {
+                placeholders.push(`($${i}, $${i + 1}, $${i + 2}, $${i + 3}, $${i + 4})`);
+                values.push(noCust, info.name, info.email, info.phone, info.address);
+                i += 5;
+            }
+
+            // Chunking
+            const CHUNK_SIZE = 100; // 5 params per row * 100 = 500 params < 65535 Psql limit
+            for (let j = 0; j < placeholders.length; j += CHUNK_SIZE) {
+                const chunkPlaceholders = placeholders.slice(j, j + CHUNK_SIZE);
+                const chunkValues = values.slice(j * 5, (j + CHUNK_SIZE) * 5);
+
+                await pool.query(
+                    `INSERT INTO customers (no_customer, name, email, phone, address) VALUES ${chunkPlaceholders.join(', ')}
+                     ON CONFLICT (no_customer) DO UPDATE SET 
+                     name = EXCLUDED.name, 
+                     email = COALESCE(EXCLUDED.email, customers.email),
+                     phone = COALESCE(EXCLUDED.phone, customers.phone),
+                     address = COALESCE(EXCLUDED.address, customers.address),
+                     updated_at = NOW()`,
+                    chunkValues
+                );
+            }
+            successCount = customerUpserts.size;
+        }
+
+        // Clean up file
+        fs.unlinkSync(filePath);
+
+        // Log
+        await pool.query(
+            `INSERT INTO activity_logs (user_type, user_id, user_name, action, description, ip_address) VALUES ($1, $2, $3, $4, $5, $6)`,
+            ['admin', req.user.id, req.user.username, 'Import Customers', `Import customer: ${successCount} berhasil`, req.ip]
+        );
+
+        res.json({
+            success: true,
+            message: `Import berhasil. ${successCount} customer diproses.`,
+            data: { success_count: successCount, failed_count: failedCount, errors: errors.slice(0, 20) }
+        });
+
+    } catch (error) {
+        if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+        next(error);
+    }
+};
+
 module.exports = {
-    getCustomers, addCustomer, editCustomer, resetCustomerPassword, toggleCustomerStatus,
+    getCustomers, addCustomer, editCustomer, resetCustomerPassword, toggleCustomerStatus, deleteCustomer, uploadCustomers,
     getAdmins, createAdmin, editAdmin, getActivityLogs
 };

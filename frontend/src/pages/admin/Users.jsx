@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/Toast';
 import TierBadge from '../../components/TierBadge';
-import { Search, UserPlus, Edit3, X, RefreshCw, ToggleLeft, ToggleRight, Shield } from 'lucide-react';
+import { Search, UserPlus, Edit3, X, RefreshCw, ToggleLeft, ToggleRight, Shield, Trash2, Upload } from 'lucide-react';
 import { formatDate, formatNumber } from '../../utils/formatters';
 import api from '../../api/axios';
 
@@ -18,6 +18,8 @@ export default function UsersPage() {
     const [modal, setModal] = useState(null); // { type: 'addCustomer' | 'editCustomer' | 'addAdmin' | 'editAdmin', data }
     const [formData, setFormData] = useState({});
     const [saving, setSaving] = useState(false);
+    const [importing, setImporting] = useState(false);
+    const fileInputRef = useRef(null);
     const { user } = useAuth();
     const { addToast } = useToast();
 
@@ -72,6 +74,43 @@ export default function UsersPage() {
         } catch (err) { addToast('Gagal reset password', 'error'); }
     };
 
+    const handleDelete = async (id) => {
+        if (!confirm('Apakah Anda yakin ingin menghapus customer ini? Tindakan ini tidak dapat dibatalkan.')) return;
+        try {
+            await api.delete(`/admin/users/customers/${id}`);
+            addToast('Customer berhasil dihapus', 'success');
+            fetchCustomers();
+        } catch (err) {
+            addToast(err.response?.data?.message || 'Gagal menghapus customer', 'error');
+        }
+    };
+
+    const handleImportClick = () => {
+        fileInputRef.current.click();
+    };
+
+    const handleFileChange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        setImporting(true);
+        try {
+            const res = await api.post('/admin/users/customers/upload', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            addToast(res.data.message, 'success');
+            fetchCustomers();
+        } catch (err) {
+            addToast(err.response?.data?.message || 'Gagal import file', 'error');
+        } finally {
+            setImporting(false);
+            e.target.value = null; // Reset input
+        }
+    };
+
     const handleSave = async () => {
         setSaving(true);
         try {
@@ -123,6 +162,12 @@ export default function UsersPage() {
                                 onChange={(e) => setSearch(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && fetchCustomers()} style={{ paddingLeft: 40 }} />
                         </div>
                         <button onClick={fetchCustomers} className="btn btn-outline"><Search size={16} /></button>
+
+                        <input type="file" ref={fileInputRef} hidden onChange={handleFileChange} accept=".xlsx, .xls, .csv" />
+                        <button onClick={handleImportClick} className="btn btn-outline" disabled={importing}>
+                            {importing ? <div className="spinner-sm"></div> : <Upload size={16} />} Import Excel
+                        </button>
+
                         <button onClick={() => openModal('addCustomer')} className="btn btn-primary"><UserPlus size={16} /> Tambah Customer</button>
                     </div>
                     {loading ? <div className="loading-spinner"><div className="spinner"></div></div> : (
@@ -146,8 +191,9 @@ export default function UsersPage() {
                                                 </td>
                                                 <td>
                                                     <div style={{ display: 'flex', gap: 4 }}>
-                                                        <button onClick={() => openModal('editCustomer', c)} className="btn btn-ghost btn-sm"><Edit3 size={14} /></button>
+                                                        <button onClick={() => openModal('editCustomer', c)} className="btn btn-ghost btn-sm" title="Edit"><Edit3 size={14} /></button>
                                                         <button onClick={() => resetPassword(c.id)} className="btn btn-ghost btn-sm" title="Reset Password"><RefreshCw size={14} /></button>
+                                                        <button onClick={() => handleDelete(c.id)} className="btn btn-ghost btn-sm" title="Hapus" style={{ color: 'var(--danger)' }}><Trash2 size={14} /></button>
                                                     </div>
                                                 </td>
                                             </tr>
