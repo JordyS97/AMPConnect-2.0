@@ -7,9 +7,26 @@ const { apiLimiter } = require('./middleware/rateLimiter');
 
 const app = express();
 
-// CORS
+// CORS - support multiple origins including Vercel preview deployments
+const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173').split(',').map(o => o.trim());
 app.use(cors({
-    origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+    origin: function (origin, callback) {
+        // Allow requests with no origin (mobile apps, curl, etc.)
+        if (!origin) return callback(null, true);
+        // Check exact match or Vercel preview URL pattern
+        const isAllowed = allowedOrigins.some(allowed => {
+            if (origin === allowed) return true;
+            // Match Vercel preview URLs: https://project-name-xxx-user.vercel.app
+            const domain = allowed.replace('https://', '').replace('.vercel.app', '');
+            if (origin.includes(domain) && origin.endsWith('.vercel.app')) return true;
+            return false;
+        });
+        if (isAllowed) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
     credentials: true,
 }));
 
