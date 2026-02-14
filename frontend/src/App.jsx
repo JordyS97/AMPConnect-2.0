@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './components/Toast';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 
 // Customer pages
 import CustomerLogin from './pages/customer/Login';
@@ -84,6 +85,7 @@ export default function App() {
                         {/* Catch all */}
                         <Route path="*" element={<Navigate to="/" />} />
                     </Routes>
+                    <SpeedInsights />
                 </ToastProvider>
             </AuthProvider>
         </BrowserRouter>
