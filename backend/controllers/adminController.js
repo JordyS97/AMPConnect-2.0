@@ -282,14 +282,15 @@ const uploadSales = async (req, res, next) => {
                 const tipeFaktur = row.tipe_faktur || 'Regular';
                 const noPart = row.no_part || '';
                 const namaPart = row.nama_part || '';
-                const qty = parseInt(row.qty || row.quantity || 0);
-                const totalFaktur = parseFloat(row.total_faktur || 0);
-                const diskon = parseFloat(row.diskon || 0);
-                const netSales = parseFloat(row.net_sales || 0);
-                const gpPercent = parseFloat(row.gp_percent || row['gp%'] || 0);
-                const grossProfit = parseFloat(row.gross_profit || 0);
-                const groupPart = row.group_part || null;
-                const groupMaterial = row.group_material || row.matgroup_fix || null;
+                const parseNum = (v) => { const s = String(v || 0).replace(/,/g, '').replace(/%/g, '').trim(); return parseFloat(s) || 0; };
+                const qty = parseInt(parseNum(row.qty || row.quantity));
+                const totalFaktur = parseNum(row.total_faktur);
+                const diskon = parseNum(row.diskon);
+                const netSales = parseNum(row.net_sales);
+                const gpPercent = parseNum(row.gp_percent);
+                const grossProfit = parseNum(row.gross_profit);
+                const groupPart = (row.group_part || '').trim() || null;
+                const groupMaterial = (row.group_material || row.matgroup_fix || '').trim() || null;
 
                 if (!noFaktur || !tanggal) {
                     failedCount++;
