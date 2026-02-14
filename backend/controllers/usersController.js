@@ -54,14 +54,17 @@ const getCustomers = async (req, res, next) => {
 // Add customer (no_customer only)
 const addCustomer = async (req, res, next) => {
     try {
-        const { no_customer } = req.body;
+        const { no_customer, name, email, phone, address } = req.body;
 
         const existing = await pool.query('SELECT * FROM customers WHERE no_customer = $1', [no_customer]);
         if (existing.rows.length > 0) {
             return res.status(400).json({ success: false, message: 'Nomor customer sudah ada.' });
         }
 
-        await pool.query('INSERT INTO customers (no_customer) VALUES ($1)', [no_customer]);
+        await pool.query(
+            'INSERT INTO customers (no_customer, name, email, phone, address) VALUES ($1, $2, $3, $4, $5)',
+            [no_customer, name, email || null, phone || null, address || null]
+        );
 
         await pool.query(
             `INSERT INTO activity_logs (user_type, user_id, user_name, action, description, ip_address) VALUES ($1, $2, $3, $4, $5, $6)`,

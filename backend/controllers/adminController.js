@@ -273,8 +273,8 @@ const uploadSales = async (req, res, next) => {
 
         for (const raw of data) {
             const row = normalizeSalesRow(raw);
-            const noCustomer = (row.no_customer || '').trim();
-            const customerName = (row.customer_name || row.nama_customer || '').trim();
+            const noCustomer = String(row.no_customer || '').trim();
+            const customerName = String(row.customer_name || row.nama_customer || '').trim();
 
             if (noCustomer) {
                 // If we haven't seen this customer yet, or if this row has a name and the previous didn't
@@ -463,9 +463,9 @@ const uploadStock = async (req, res, next) => {
                 const row = data[i];
                 const noPart = row['NO PART'] || row.NO_PART || row.no_part || '';
                 const namaPart = row['NAMA PART'] || row.NAMA_PART || row.nama_part || '';
-                const groupPart = (row['GROUP PART'] || row.GROUP_PART || row.group_part || '').trim() || null;
-                const groupTobpm = (row['GROUP TOBPM'] || row.GROUP_TOBPM || '').trim() || null;
-                const groupMaterial = (row['GROUP MATERIAL'] || row.GROUP_MATERIAL || row.group_material || '').trim() || null;
+                const groupPart = String(row['GROUP PART'] || row.GROUP_PART || row.group_part || '').trim() || null;
+                const groupTobpm = String(row['GROUP TOBPM'] || row.GROUP_TOBPM || '').trim() || null;
+                const groupMaterial = String(row['GROUP MATERIAL'] || row.GROUP_MATERIAL || row.group_material || '').trim() || null;
                 const qty = parseInt(String(row.QTY || row.qty || 0).replace(/,/g, '')) || 0;
                 const amount = parseFloat(String(row.AMOUNT || row.amount || 0).replace(/,/g, '')) || 0;
 
