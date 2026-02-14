@@ -277,7 +277,6 @@ const uploadSales = async (req, res, next) => {
             const customerName = String(row.customer_name || row.nama_customer || '').trim();
 
             if (noCustomer) {
-                // If we haven't seen this customer yet, or if this row has a name and the previous didn't
                 if (!customerUpserts.has(noCustomer) || (customerName && !customerUpserts.get(noCustomer))) {
                     customerUpserts.set(noCustomer, customerName || `Customer ${noCustomer}`);
                 }
@@ -295,7 +294,6 @@ const uploadSales = async (req, res, next) => {
                 cState += 2;
             }
 
-            // Batch upsert customers in chunks of 500 to avoid query parameter limits
             const CUST_BATCH_SIZE = 500;
             for (let i = 0; i < customerPlaceholders.length; i += CUST_BATCH_SIZE) {
                 const chunkPlaceholders = customerPlaceholders.slice(i, i + CUST_BATCH_SIZE);
@@ -309,80 +307,107 @@ const uploadSales = async (req, res, next) => {
             }
         }
 
-        // 2. Pre-cache all customers (now including the newly created/updated ones)
+        // 2. Pre-cache all customers
         const allCustomers = await pool.query('SELECT id, no_customer FROM customers');
         const customerMap = {};
         allCustomers.rows.forEach(c => { customerMap[c.no_customer] = c.id; });
 
+        // 3. Group Rows by No Faktur
+        const invoiceGroups = {};
+        const parseNum = (v) => { const s = String(v || 0).replace(/,/g, '').replace(/%/g, '').trim(); return parseFloat(s) || 0; };
+
+        for (let i = 0; i < data.length; i++) {
+            const row = normalizeSalesRow(data[i]);
+            const noFaktur = row.no_faktur;
+            if (!noFaktur) continue;
+
+            if (!invoiceGroups[noFaktur]) {
+                invoiceGroups[noFaktur] = [];
+            }
+            invoiceGroups[noFaktur].push({ ...row, _origRow: i + 2 });
+        }
+
         let successCount = 0;
         let failedCount = 0;
         const errors = [];
-        const parseNum = (v) => { const s = String(v || 0).replace(/,/g, '').replace(/%/g, '').trim(); return parseFloat(s) || 0; };
         const affectedCustomerIds = new Set();
 
-        // Process in batches of 100
-        const BATCH_SIZE = 100;
-        for (let batchStart = 0; batchStart < data.length; batchStart += BATCH_SIZE) {
-            const batch = data.slice(batchStart, batchStart + BATCH_SIZE);
-            const values = [];
-            const placeholders = [];
-            let paramIdx = 1;
+        // 4. Process Each Invoice
+        const invoices = Object.keys(invoiceGroups);
 
-            for (let i = 0; i < batch.length; i++) {
-                try {
-                    const row = normalizeSalesRow(batch[i]);
-                    const noFaktur = row.no_faktur || '';
-                    const tanggal = row.tanggal || '';
-                    const noCustomer = row.no_customer || '';
-                    const tipeFaktur = row.tipe_faktur || 'Regular';
-                    const totalFaktur = parseNum(row.total_faktur);
-                    const diskon = parseNum(row.diskon);
-                    const netSales = parseNum(row.net_sales);
-                    const gpPercent = parseNum(row.gp_percent);
-                    const grossProfit = parseNum(row.gross_profit);
+        for (const noFaktur of invoices) {
+            const items = invoiceGroups[noFaktur];
+            const header = items[0]; // Take header info from first row
 
-                    if (!noFaktur || !tanggal) {
-                        failedCount++;
-                        errors.push({ row: batchStart + i + 2, error: 'No Faktur atau Tgl Faktur kosong' });
-                        continue;
+            try {
+                const tanggal = header.tanggal || null;
+                const noCustomer = header.no_customer || '';
+                const tipeFaktur = header.tipe_faktur || 'Regular';
+                const totalFaktur = parseNum(header.total_faktur);
+                const diskon = parseNum(header.diskon); // Usually invoice level discount
+                const netSales = parseNum(header.net_sales);
+                const gpPercent = parseNum(header.gp_percent);
+                const grossProfit = parseNum(header.gross_profit);
+
+                if (!tanggal) throw new Error('Tgl Faktur kosong');
+
+                const customerId = customerMap[noCustomer] || null;
+                const pointsEarned = calculatePoints(netSales);
+                if (customerId) affectedCustomerIds.add(customerId);
+
+                // Upsert Transaction Header
+                const txRes = await pool.query(
+                    `INSERT INTO transactions (no_faktur, tanggal, customer_id, no_customer, tipe_faktur, total_faktur, diskon, net_sales, gp_percent, gross_profit, points_earned)
+                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                     ON CONFLICT (no_faktur) DO UPDATE SET
+                     tanggal = EXCLUDED.tanggal, customer_id = EXCLUDED.customer_id, tipe_faktur = EXCLUDED.tipe_faktur,
+                     total_faktur = EXCLUDED.total_faktur, diskon = EXCLUDED.diskon, net_sales = EXCLUDED.net_sales,
+                     gp_percent = EXCLUDED.gp_percent, gross_profit = EXCLUDED.gross_profit, points_earned = EXCLUDED.points_earned
+                     RETURNING id`,
+                    [noFaktur, tanggal, customerId, noCustomer, tipeFaktur, totalFaktur, diskon, netSales, gpPercent, grossProfit, pointsEarned]
+                );
+
+                const transactionId = txRes.rows[0].id;
+
+                // Delete existing items for this transaction (overwrite strategy)
+                await pool.query('DELETE FROM transaction_items WHERE transaction_id = $1', [transactionId]);
+
+                // Insert Items
+                if (items.length > 0) {
+                    const itemValues = [];
+                    const itemPlaceholders = [];
+                    let idx = 1;
+
+                    for (const item of items) {
+                        const noPart = item.no_part || '';
+                        const namaPart = item.nama_part || '';
+                        const qty = parseNum(item.qty);
+                        const subtotal = parseNum(item.sales); // 'Sales' column is usually the line amount
+                        const price = qty !== 0 ? subtotal / qty : 0; // Calculate unit price
+
+                        itemPlaceholders.push(`($${idx}, $${idx + 1}, $${idx + 2}, $${idx + 3}, $${idx + 4}, $${idx + 5})`);
+                        itemValues.push(transactionId, noPart, namaPart, qty, price, subtotal);
+                        idx += 6;
                     }
 
-                    const customerId = customerMap[noCustomer] || null;
-                    const pointsEarned = calculatePoints(netSales);
-
-                    if (customerId) affectedCustomerIds.add(customerId);
-
-                    placeholders.push(`($${paramIdx}, $${paramIdx + 1}, $${paramIdx + 2}, $${paramIdx + 3}, $${paramIdx + 4}, $${paramIdx + 5}, $${paramIdx + 6}, $${paramIdx + 7}, $${paramIdx + 8}, $${paramIdx + 9}, $${paramIdx + 10})`);
-                    values.push(noFaktur, tanggal, customerId, noCustomer, tipeFaktur, totalFaktur, diskon, netSales, gpPercent, grossProfit, pointsEarned);
-                    paramIdx += 11;
-                    successCount++;
-                } catch (err) {
-                    failedCount++;
-                    errors.push({ row: batchStart + i + 2, error: err.message });
+                    // Batch insert items
+                    if (itemValues.length > 0) {
+                        await pool.query(
+                            `INSERT INTO transaction_items (transaction_id, no_part, nama_part, qty, price, subtotal)
+                             VALUES ${itemPlaceholders.join(', ')}`,
+                            itemValues
+                        );
+                    }
                 }
-            }
 
-            if (placeholders.length > 0) {
-                try {
-                    await pool.query(
-                        `INSERT INTO transactions (no_faktur, tanggal, customer_id, no_customer, tipe_faktur, total_faktur, diskon, net_sales, gp_percent, gross_profit, points_earned)
-                         VALUES ${placeholders.join(', ')}
-                         ON CONFLICT (no_faktur) DO UPDATE SET
-                         tanggal = EXCLUDED.tanggal, customer_id = EXCLUDED.customer_id, tipe_faktur = EXCLUDED.tipe_faktur,
-                         total_faktur = EXCLUDED.total_faktur, diskon = EXCLUDED.diskon, net_sales = EXCLUDED.net_sales,
-                         gp_percent = EXCLUDED.gp_percent, gross_profit = EXCLUDED.gross_profit, points_earned = EXCLUDED.points_earned`,
-                        values
-                    );
-                } catch (err) {
-                    // If batch fails, count all as failed
-                    successCount -= placeholders.length;
-                    failedCount += placeholders.length;
-                    errors.push({ row: `${batchStart + 2}-${batchStart + batch.length + 1}`, error: err.message });
-                }
+                successCount += items.length; // Count processed rows, not invoices
+            } catch (err) {
+                failedCount += items.length;
+                errors.push({ row: `${items[0]._origRow}-${items[items.length - 1]._origRow}`, error: `Invoice ${noFaktur}: ${err.message}` });
             }
         }
 
-        // Update customer points and tiers in one pass at the end
+        // 5. Update customer points
         for (const customerId of affectedCustomerIds) {
             try {
                 const totalPoints = await pool.query(
@@ -406,7 +431,7 @@ const uploadSales = async (req, res, next) => {
         // Log activity
         await pool.query(
             `INSERT INTO activity_logs (user_type, user_id, user_name, action, description, ip_address) VALUES ($1, $2, $3, $4, $5, $6)`,
-            ['admin', req.user.id, req.user.username, 'Upload Sales', `Upload data penjualan: ${successCount} berhasil, ${failedCount} gagal`, req.ip]
+            ['admin', req.user.id, req.user.username, 'Upload Sales', `Upload data penjualan: ${successCount} baris berhasil, ${failedCount} gagal`, req.ip]
         );
 
         // Clean up
@@ -414,7 +439,7 @@ const uploadSales = async (req, res, next) => {
 
         res.json({
             success: true,
-            message: `Data penjualan berhasil diproses. ${successCount} berhasil, ${failedCount} gagal.`,
+            message: `Data penjualan berhasil diproses. ${successCount} baris berhasil, ${failedCount} gagal.`,
             data: { rows_processed: data.length, success_count: successCount, failed_count: failedCount, errors: errors.slice(0, 20) }
         });
     } catch (error) {
