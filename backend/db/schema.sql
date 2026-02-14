@@ -72,11 +72,11 @@ CREATE TABLE transactions (
   customer_id INTEGER REFERENCES customers(id),
   no_customer VARCHAR(50),
   tipe_faktur VARCHAR(50),
-  total_faktur DECIMAL(15,2) DEFAULT 0,
-  diskon DECIMAL(15,2) DEFAULT 0,
-  net_sales DECIMAL(15,2) DEFAULT 0,
-  gp_percent DECIMAL(5,2) DEFAULT 0,
-  gross_profit DECIMAL(15,2) DEFAULT 0,
+  total_faktur DECIMAL(20,2) DEFAULT 0,
+  diskon DECIMAL(20,2) DEFAULT 0,
+  net_sales DECIMAL(20,2) DEFAULT 0,
+  gp_percent DECIMAL(10,2) DEFAULT 0,
+  gross_profit DECIMAL(20,2) DEFAULT 0,
   points_earned INTEGER DEFAULT 0,
   created_at TIMESTAMP DEFAULT NOW()
 );
@@ -88,8 +88,8 @@ CREATE TABLE transaction_items (
   no_part VARCHAR(100),
   nama_part VARCHAR(255),
   qty INTEGER DEFAULT 0,
-  price DECIMAL(15,2) DEFAULT 0,
-  subtotal DECIMAL(15,2) DEFAULT 0
+  price DECIMAL(20,2) DEFAULT 0,
+  subtotal DECIMAL(20,2) DEFAULT 0
 );
 
 -- Upload history
