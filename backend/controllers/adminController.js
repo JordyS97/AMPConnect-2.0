@@ -27,15 +27,15 @@ const getDashboard = async (req, res, next) => {
        GROUP BY tanggal ORDER BY tanggal`
         );
 
-        // Sales by group material (current month)
+        // Sales by group TOBPM (current month)
         const salesByGroup = await pool.query(
-            `SELECT COALESCE(p.group_material, 'Lainnya') as group_name, SUM(ti.subtotal) as total
+            `SELECT COALESCE(p.group_tobpm, 'Lainnya') as group_name, SUM(ti.subtotal) as total
        FROM transaction_items ti
        JOIN transactions t ON ti.transaction_id = t.id
        LEFT JOIN parts p ON ti.no_part = p.no_part
        WHERE EXTRACT(MONTH FROM t.tanggal) = EXTRACT(MONTH FROM NOW())
        AND EXTRACT(YEAR FROM t.tanggal) = EXTRACT(YEAR FROM NOW())
-       GROUP BY p.group_material ORDER BY total DESC`
+       GROUP BY p.group_tobpm ORDER BY total DESC`
         );
 
         // Top 10 best selling parts (current month)
@@ -503,11 +503,11 @@ const uploadStock = async (req, res, next) => {
                 }
 
                 await pool.query(
-                    `INSERT INTO parts (no_part, nama_part, group_part, group_material, qty, amount, last_updated)
-           VALUES ($1, $2, $3, $4, $5, $6, NOW())
+                    `INSERT INTO parts (no_part, nama_part, group_part, group_material, group_tobpm, qty, amount, last_updated)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
            ON CONFLICT (no_part) DO UPDATE SET
-           nama_part = $2, group_part = $3, group_material = $4, qty = $5, amount = $6, last_updated = NOW()`,
-                    [noPart, namaPart, groupPart, groupMaterial, qty, amount]
+           nama_part = $2, group_part = $3, group_material = $4, group_tobpm = $5, qty = $6, amount = $7, last_updated = NOW()`,
+                    [noPart, namaPart, groupPart, groupMaterial, groupTobpm, qty, amount]
                 );
 
                 successCount++;

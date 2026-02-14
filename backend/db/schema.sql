@@ -57,6 +57,7 @@ CREATE TABLE parts (
   nama_part VARCHAR(255) NOT NULL,
   group_part VARCHAR(100),
   group_material VARCHAR(100),
+  group_tobpm VARCHAR(100),
   qty INTEGER DEFAULT 0,
   amount DECIMAL(15,2) DEFAULT 0,
   last_updated TIMESTAMP DEFAULT NOW(),

@@ -1,0 +1,1 @@
+﻿const pool = require('./backend/config/db'); pool.query('ALTER TABLE parts ADD COLUMN IF NOT EXISTS group_tobpm VARCHAR(100)').then(() => { console.log('Column added'); pool.end(); }).catch(e => { console.error(e); pool.end(); })
