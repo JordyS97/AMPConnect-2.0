@@ -24,7 +24,17 @@ export default function AdminLogin() {
             addToast('Login berhasil!', 'success');
             navigate('/admin/dashboard');
         } catch (err) {
-            addToast(err.response?.data?.message || 'Login gagal', 'error');
+            console.error('Login Error:', err);
+            const status = err.response?.status;
+            const msg = err.response?.data?.message || err.message || 'Login gagal';
+
+            if (!err.response) {
+                addToast(`Network Error: ${msg}. Check API URL & CORS.`, 'error');
+            } else if (status === 401) {
+                addToast(msg, 'error'); // Wrong password
+            } else {
+                addToast(`Error (${status}): ${msg}`, 'error');
+            }
         } finally {
             setLoading(false);
         }
