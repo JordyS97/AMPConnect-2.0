@@ -320,34 +320,9 @@ const uploadSales = async (req, res, next) => {
         const parseNum = (v) => {
             if (typeof v === 'number') return v;
             if (!v) return 0;
-            let s = String(v).trim();
-
-            // Handle Indonesian format (e.g., 1.234.567,89)
-            // If it has a comma that looks like a decimal separator (last separator is comma)
-            const lastDot = s.lastIndexOf('.');
-            const lastComma = s.lastIndexOf(',');
-
-            if (lastComma > -1) {
-                if (lastComma > lastDot) {
-                    // Indonesian: 1.234,56 or 1234,56
-                    s = s.replace(/\./g, '').replace(',', '.');
-                } else {
-                    // US: 1,234.56
-                    s = s.replace(/,/g, '');
-                }
-            } else {
-                // No comma. Check for dots.
-                // 1.234.567 (Indonesian integer) -> remove all dots
-                // 1234.56 (US decimal) -> keep dot (handled by parseFloat)
-                // Ambiguous case: 1.234 could be 1234 (ID) or 1.234 (US)
-                // Assumption: If multiple dots, it's thousands separators.
-                if ((s.match(/\./g) || []).length > 1) {
-                    s = s.replace(/\./g, '');
-                }
-            }
-
-            // Cleanup other chars (like currency symbols if any, though regex above handles most)
-            // But we already structurally modified it, so just parse.
+            // User confirmed format: "," is thousands separator, "." is decimal separator.
+            // Example: 1,292,458,670.00 -> 1292458670.00
+            const s = String(v).replace(/,/g, '').trim();
             return parseFloat(s) || 0;
         };
 
