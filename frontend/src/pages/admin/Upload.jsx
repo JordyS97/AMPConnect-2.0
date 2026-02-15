@@ -162,18 +162,12 @@ export default function UploadPage() {
                                     {result.data.skipped > 0 && <> | ⚠️ {result.data.skipped} data dilewati</>}
                                 </p>
                             )}
-                            {(result.errors?.length > 0 || result.data?.errors?.length > 0) && (
+                            {result.errors?.length > 0 && (
                                 <div style={{ marginTop: 8 }}>
                                     <p style={{ fontSize: '0.85rem', fontWeight: 500, color: 'var(--danger)' }}>Error:</p>
                                     <ul style={{ paddingLeft: 20, fontSize: '0.85rem' }}>
-                                        {(result.errors || result.data.errors).slice(0, 5).map((e, i) => (
-                                            <li key={i} style={{ color: '#b91c1c' }}>
-                                                {typeof e === 'string' ? e : `Row ${e.row}: ${e.error}`}
-                                            </li>
-                                        ))}
-                                        {(result.errors || result.data.errors).length > 5 && (
-                                            <li>...dan {(result.errors || result.data.errors).length - 5} error lainnya</li>
-                                        )}
+                                        {result.errors.slice(0, 5).map((e, i) => <li key={i} style={{ color: '#b91c1c' }}>{e}</li>)}
+                                        {result.errors.length > 5 && <li>...dan {result.errors.length - 5} error lainnya</li>}
                                     </ul>
                                 </div>
                             )}
@@ -187,8 +181,8 @@ export default function UploadPage() {
                         </h4>
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                             {(activeTab === 'sales'
-                                ? ['No Faktur', 'Tgl Faktur', 'Transaksi', 'Tipe Faktur', 'No Customer', 'Customer Name', 'No Part', 'Nama Part', 'Quantity', 'Sales', 'Diskon', 'Total Faktur', 'Net Sales', 'Gross Profit', 'GP%', 'Group Material', 'Group Part']
-                                : ['GROUP PART', 'GROUP TOBPM', 'GROUP MATERIAL', 'NO PART', 'NAMA PART', 'QTY', 'AMOUNT']
+                                ? ['Tanggal', 'No Faktur', 'Tipe Faktur', 'No Customer', 'Nama Customer', 'No Part', 'Nama Part', 'Qty', 'Harga', 'Total Faktur', 'Diskon', 'Net Sales', 'HPP', 'Gross Profit', 'GP%']
+                                : ['No Part', 'Nama Part', 'Group Material', 'Group Part', 'Qty']
                             ).map(col => <span key={col} className="badge badge-info">{col}</span>)}
                         </div>
                     </div>
@@ -208,13 +202,13 @@ export default function UploadPage() {
                                 <tbody>
                                     {history.map((h, i) => (
                                         <tr key={i}>
-                                            <td>{formatDate(h.created_at)}</td>
-                                            <td><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><FileSpreadsheet size={16} color="var(--success)" />{h.file_name}</div></td>
-                                            <td><span className="badge badge-info">{h.file_type}</span></td>
-                                            <td><span className={`badge ${h.status === 'completed' ? 'badge-success' : h.status === 'processing' ? 'badge-warning' : 'badge-danger'}`}>{h.status}</span></td>
-                                            <td>{h.success_count || 0}</td>
-                                            <td>{h.failed_count || 0}</td>
-                                            <td>{h.admin_username}</td>
+                                            <td>{formatDate(h.uploaded_at)}</td>
+                                            <td><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><FileSpreadsheet size={16} color="var(--success)" />{h.filename}</div></td>
+                                            <td><span className="badge badge-info">{h.upload_type}</span></td>
+                                            <td><span className={`badge ${h.status === 'success' ? 'badge-success' : h.status === 'partial' ? 'badge-warning' : 'badge-danger'}`}>{h.status}</span></td>
+                                            <td>{h.rows_success || 0}</td>
+                                            <td>{h.rows_failed || 0}</td>
+                                            <td>{h.uploaded_by}</td>
                                         </tr>
                                     ))}
                                 </tbody>

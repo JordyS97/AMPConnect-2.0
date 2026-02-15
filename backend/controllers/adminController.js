@@ -28,9 +28,15 @@ const getInventoryAnalytics = async (req, res, next) => {
             GROUP BY ti.no_part, ti.nama_part ORDER BY total_value DESC LIMIT 20`);
 
         // Using p.amount / p.qty as Unit Cost (assuming amount is Total Value)
+        // Refactored to use Aggregated Totals: (Total Sales - Total Cost) / Total Sales
+        // Total Cost = Sum(Sold Qty * Unit Cost)
         const bestGPPercent = await pool.query(`
             SELECT ti.no_part, ti.nama_part, 
-                   AVG((ti.price - (COALESCE(p.amount, 0) / NULLIF(p.qty, 0))) / NULLIF(ti.price, 0) * 100) as avg_gp
+                   (SUM(ti.subtotal) - SUM(ti.qty * (COALESCE(p.amount, 0) / NULLIF(p.qty, 0)))) as total_profit,
+                   SUM(ti.subtotal) as total_revenue,
+                   CASE WHEN SUM(ti.subtotal) > 0 THEN 
+                        ((SUM(ti.subtotal) - SUM(ti.qty * (COALESCE(p.amount, 0) / NULLIF(p.qty, 0)))) / SUM(ti.subtotal)) * 100 
+                   ELSE 0 END as avg_gp
             FROM transaction_items ti 
             JOIN transactions t ON ti.transaction_id = t.id
             JOIN parts p ON ti.no_part = p.no_part
@@ -42,7 +48,11 @@ const getInventoryAnalytics = async (req, res, next) => {
         // 2. Worst Performers
         const worstGPPercent = await pool.query(`
             SELECT ti.no_part, ti.nama_part, 
-                   AVG((ti.price - (COALESCE(p.amount, 0) / NULLIF(p.qty, 0))) / NULLIF(ti.price, 0) * 100) as avg_gp
+                   (SUM(ti.subtotal) - SUM(ti.qty * (COALESCE(p.amount, 0) / NULLIF(p.qty, 0)))) as total_profit,
+                   SUM(ti.subtotal) as total_revenue,
+                   CASE WHEN SUM(ti.subtotal) > 0 THEN 
+                        ((SUM(ti.subtotal) - SUM(ti.qty * (COALESCE(p.amount, 0) / NULLIF(p.qty, 0)))) / SUM(ti.subtotal)) * 100 
+                   ELSE 0 END as avg_gp
             FROM transaction_items ti 
             JOIN transactions t ON ti.transaction_id = t.id
             JOIN parts p ON ti.no_part = p.no_part
@@ -53,13 +63,17 @@ const getInventoryAnalytics = async (req, res, next) => {
 
         const negativeGP = await pool.query(`
              SELECT ti.no_part, ti.nama_part, 
-                    AVG((ti.price - (COALESCE(p.amount, 0) / NULLIF(p.qty, 0))) / NULLIF(ti.price, 0) * 100) as avg_gp
+                    (SUM(ti.subtotal) - SUM(ti.qty * (COALESCE(p.amount, 0) / NULLIF(p.qty, 0)))) as total_profit,
+                    SUM(ti.subtotal) as total_revenue,
+                    CASE WHEN SUM(ti.subtotal) > 0 THEN 
+                         ((SUM(ti.subtotal) - SUM(ti.qty * (COALESCE(p.amount, 0) / NULLIF(p.qty, 0)))) / SUM(ti.subtotal)) * 100 
+                    ELSE 0 END as avg_gp
             FROM transaction_items ti 
             JOIN transactions t ON ti.transaction_id = t.id
             JOIN parts p ON ti.no_part = p.no_part
             WHERE ti.price > 0 AND p.qty > 0 
-            AND (ti.price - (COALESCE(p.amount, 0) / NULLIF(p.qty, 0))) < 0
             GROUP BY ti.no_part, ti.nama_part 
+            HAVING (SUM(ti.subtotal) - SUM(ti.qty * (COALESCE(p.amount, 0) / NULLIF(p.qty, 0)))) < 0
             LIMIT 50`);
 
         // 3. Inventory Health
