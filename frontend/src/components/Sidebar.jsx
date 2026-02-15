@@ -21,6 +21,7 @@ const adminLinks = [
     { path: '/admin/stock', label: 'Manajemen Stok', icon: Package },
     { path: '/admin/upload', label: 'Upload Data', icon: Upload },
     { path: '/admin/users', label: 'Manajemen User', icon: Users },
+    { path: '/admin/customer-analytics', label: 'Analitik Customer', icon: TrendingUp },
     { path: '/admin/reports', label: 'Laporan', icon: FileText },
 ];
 

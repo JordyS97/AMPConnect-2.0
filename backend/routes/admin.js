@@ -6,7 +6,8 @@ const { verifyToken, isAdmin } = require('../middleware/auth');
 const { uploadLimiter } = require('../middleware/rateLimiter');
 const {
     getDashboard, getSales, getSaleDetail, getStock, adjustStock,
-    uploadSales, uploadStock, getUploadHistory, downloadTemplate, generateReport
+    uploadSales, uploadStock, getUploadHistory, downloadTemplate, generateReport,
+    getCustomerAnalytics
 } = require('../controllers/adminController');
 const {
     getCustomers, addCustomer, editCustomer, resetCustomerPassword, toggleCustomerStatus, deleteCustomer, uploadCustomers,
@@ -72,5 +73,8 @@ router.get('/users/logs', getActivityLogs);
 
 // Reports
 router.post('/reports/generate', generateReport);
+
+// Customer Analytics
+router.get('/customer-analytics', getCustomerAnalytics);
 
 module.exports = router;

@@ -693,7 +693,110 @@ const generateReport = async (req, res, next) => {
     }
 };
 
+// Get customer analytics
+const getCustomerAnalytics = async (req, res, next) => {
+    try {
+        const today = new Date();
+        const sixtyDaysAgo = new Date(today);
+        sixtyDaysAgo.setDate(today.getDate() - 60);
+
+        // 1. Top Customers
+        const topRevenueQuery = `
+            SELECT c.name, c.no_customer, SUM(t.net_sales) as total_value, COUNT(t.id) as transactions
+            FROM transactions t
+            JOIN customers c ON t.customer_id = c.id
+            GROUP BY c.id ORDER BY total_value DESC LIMIT 10
+        `;
+        const topFreqQuery = `
+            SELECT c.name, c.no_customer, COUNT(t.id) as total_value, SUM(t.net_sales) as revenue
+            FROM transactions t
+            JOIN customers c ON t.customer_id = c.id
+            GROUP BY c.id ORDER BY total_value DESC LIMIT 10
+        `;
+        const topProfitQuery = `
+             SELECT c.name, c.no_customer, SUM(t.gross_profit) as total_value, SUM(t.net_sales) as revenue
+            FROM transactions t
+            JOIN customers c ON t.customer_id = c.id
+            GROUP BY c.id ORDER BY total_value DESC LIMIT 10
+        `;
+
+        const [topRevenue, topFreq, topProfit] = await Promise.all([
+            pool.query(topRevenueQuery),
+            pool.query(topFreqQuery),
+            pool.query(topProfitQuery)
+        ]);
+
+        // 2. Value Metrics
+        const valueMetricsQuery = `
+            SELECT 
+                COUNT(DISTINCT customer_id) as total_customers,
+                SUM(net_sales) as total_revenue,
+                SUM(net_sales) / NULLIF(COUNT(DISTINCT customer_id), 0) as arpc
+            FROM transactions
+        `;
+        const valueMetrics = await pool.query(valueMetricsQuery);
+        const totalRevenue = parseFloat(valueMetrics.rows[0].total_revenue) || 0;
+        const top10Revenue = topRevenue.rows.reduce((sum, row) => sum + parseFloat(row.total_value), 0);
+        const concentrationRisk = totalRevenue > 0 ? (top10Revenue / totalRevenue) * 100 : 0;
+
+        // 3. Behavior (Frequency Distribution)
+        const freqDistQuery = `
+            WITH customer_freq AS (
+                SELECT customer_id, COUNT(*) as freq FROM transactions GROUP BY customer_id
+            )
+            SELECT 
+                CASE 
+                    WHEN freq = 1 THEN '1x'
+                    WHEN freq BETWEEN 2 AND 5 THEN '2-5x'
+                    WHEN freq BETWEEN 6 AND 10 THEN '6-10x'
+                    ELSE '11x+' 
+                END as bucket,
+                COUNT(*) as count
+            FROM customer_freq
+            GROUP BY bucket
+        `;
+        const freqDist = await pool.query(freqDistQuery);
+
+        // 4. Risk Alerts (Dormant > 60 days)
+        const dormantQuery = `
+            SELECT c.name, c.no_customer, MAX(t.tanggal) as last_purchase,
+            EXTRACT(DAY FROM NOW() - MAX(t.tanggal)) as days_inactive
+            FROM transactions t
+            JOIN customers c ON t.customer_id = c.id
+            GROUP BY c.id
+            HAVING MAX(t.tanggal) < $1
+            ORDER BY days_inactive DESC LIMIT 20
+        `;
+        const dormant = await pool.query(dormantQuery, [sixtyDaysAgo]);
+
+        res.json({
+            success: true,
+            data: {
+                top: {
+                    revenue: topRevenue.rows.map(r => ({ ...r, total_value: parseFloat(r.total_value) })),
+                    frequency: topFreq.rows.map(r => ({ ...r, total_value: parseInt(r.total_value) })),
+                    profit: topProfit.rows.map(r => ({ ...r, total_value: parseFloat(r.total_value) }))
+                },
+                value: {
+                    arpc: parseFloat(valueMetrics.rows[0].arpc),
+                    avg_clv: parseFloat(valueMetrics.rows[0].arpc), // Simple proxy for now
+                    concentration_risk: concentrationRisk
+                },
+                behavior: {
+                    frequency_dist: freqDist.rows.map(r => ({ ...r, count: parseInt(r.count) }))
+                },
+                alerts: {
+                    dormant: dormant.rows
+                }
+            }
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     getDashboard, getSales, getSaleDetail, getStock, adjustStock,
-    uploadSales, uploadStock, getUploadHistory, downloadTemplate, generateReport
+    uploadSales, uploadStock, getUploadHistory, downloadTemplate, generateReport,
+    getCustomerAnalytics
 };
