@@ -43,6 +43,15 @@ const getDashboard = async (req, res, next) => {
 
         const tierProgress = pointsToNextTier(c.total_points);
 
+        // Calculate percentage for Dashboard
+        let percentage = 0;
+        if (c.total_points >= 1500) percentage = 100;
+        else if (c.total_points >= 500) percentage = ((c.total_points - 500) / 1000) * 100;
+        else percentage = (c.total_points / 500) * 100;
+
+        tierProgress.percentage = Math.round(percentage);
+        tierProgress.currentPoints = c.total_points;
+
         res.json({
             success: true,
             data: {
@@ -176,6 +185,13 @@ const getPointsHistory = async (req, res, next) => {
         // Calculate progress
         const currentPoints = customer.rows[0].total_points;
         const tierProgress = pointsToNextTier(currentPoints);
+
+        // Calculate percentage for Points History
+        let percentage = 0;
+        if (currentPoints >= 1500) percentage = 100;
+        else if (currentPoints >= 500) percentage = ((currentPoints - 500) / 1000) * 100;
+        else percentage = (currentPoints / 500) * 100;
+        tierProgress.percentage = Math.round(percentage);
 
         res.json({
             success: true,
