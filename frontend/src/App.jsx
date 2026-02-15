@@ -22,6 +22,7 @@ import UploadPage from './pages/admin/Upload';
 import UsersPage from './pages/admin/Users';
 import Reports from './pages/admin/Reports';
 import CustomerAnalytics from './pages/admin/CustomerAnalytics';
+import InventoryAnalytics from './pages/admin/InventoryAnalytics';
 
 import Sidebar from './components/Sidebar';
 
@@ -82,6 +83,7 @@ export default function App() {
                         <Route path="/admin/users" element={<AdminRoute><UsersPage /></AdminRoute>} />
                         <Route path="/admin/reports" element={<AdminRoute><Reports /></AdminRoute>} />
                         <Route path="/admin/customer-analytics" element={<AdminRoute><CustomerAnalytics /></AdminRoute>} />
+                        <Route path="/admin/inventory-analytics" element={<AdminRoute><InventoryAnalytics /></AdminRoute>} />
 
                         {/* Catch all */}
                         <Route path="*" element={<Navigate to="/" />} />

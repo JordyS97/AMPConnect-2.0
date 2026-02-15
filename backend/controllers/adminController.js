@@ -3,8 +3,146 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { parseExcelFile, validateSalesColumns, validateStockColumns, createSalesTemplate, createStockTemplate, normalizeSalesRow } = require('../utils/excelParser');
+const { parseExcelFile, validateSalesColumns, validateStockColumns, createSalesTemplate, createStockTemplate, normalizeSalesRow } = require('../utils/excelParser');
 const { calculatePoints, determineTier } = require('../utils/pointsCalculator');
 const XLSX = require('xlsx');
+
+// Get inventory analytics
+const getInventoryAnalytics = async (req, res, next) => {
+    try {
+        const today = new Date();
+        const sixtyDaysAgo = new Date(today);
+        sixtyDaysAgo.setDate(today.getDate() - 60);
+        const ninetyDaysAgo = new Date(today);
+        ninetyDaysAgo.setDate(today.getDate() - 90);
+
+        // 1. Best Performers (Top 20)
+        const bestRevenue = await pool.query(`
+            SELECT ti.no_part, ti.nama_part, SUM(ti.subtotal) as total_value, SUM(ti.qty) as total_qty
+            FROM transaction_items ti JOIN transactions t ON ti.transaction_id = t.id
+            GROUP BY ti.no_part, ti.nama_part ORDER BY total_value DESC LIMIT 20`);
+
+        const bestQty = await pool.query(`
+            SELECT ti.no_part, ti.nama_part, SUM(ti.qty) as total_value, SUM(ti.subtotal) as revenue
+            FROM transaction_items ti JOIN transactions t ON ti.transaction_id = t.id
+            GROUP BY ti.no_part, ti.nama_part ORDER BY total_value DESC LIMIT 20`);
+
+        const bestProfit = await pool.query(`
+            SELECT ti.no_part, ti.nama_part, 
+            SUM(CASE WHEN ti.price > 0 THEN ti.subtotal - (ti.qty * (SELECT price FROM parts WHERE no_part = ti.no_part LIMIT 1)) ELSE 0 END) as total_value
+            FROM transaction_items ti JOIN transactions t ON ti.transaction_id = t.id
+            GROUP BY ti.no_part, ti.nama_part ORDER BY total_value DESC LIMIT 20`);
+        // Note: Accurate profit per item requires cost history, using current part price as proxy or just relying on aggregate GP if available.
+        // Actually, let's use the 'gross_profit' from transaction if available, but transaction_items doesn't have it.
+        // Simplified: We'll stick to Revenue/Qty for now as they are most reliable. BestProfit might be tricky without item-level cost in transaction_items.
+        // Let's use avg gp% from parts table if available or skip specific item profit for now to avoid calc errors.
+        // Alternative: Use transactions table GP for "Best Transactions" or derive from parts.
+        // Let's use `bestRevenue` and `bestQty` as primary. For GP%, we query parts.
+
+        const bestGPPercent = await pool.query(`
+            SELECT ti.no_part, ti.nama_part, AVG((ti.price - p.price) / NULLIF(ti.price, 0) * 100) as avg_gp
+            FROM transaction_items ti 
+            JOIN transactions t ON ti.transaction_id = t.id
+            JOIN parts p ON ti.no_part = p.no_part
+            WHERE ti.price > 0
+            GROUP BY ti.no_part, ti.nama_part 
+            HAVING COUNT(ti.id) > 5 
+            ORDER BY avg_gp DESC LIMIT 20`);
+
+        // 2. Worst Performers
+        const worstGPPercent = await pool.query(`
+            SELECT ti.no_part, ti.nama_part, AVG((ti.price - p.price) / NULLIF(ti.price, 0) * 100) as avg_gp
+            FROM transaction_items ti 
+            JOIN transactions t ON ti.transaction_id = t.id
+            JOIN parts p ON ti.no_part = p.no_part
+            WHERE ti.price > 0
+            GROUP BY ti.no_part, ti.nama_part 
+            HAVING COUNT(ti.id) > 5
+            ORDER BY avg_gp ASC LIMIT 20`);
+
+        const negativeGP = await pool.query(`
+             SELECT ti.no_part, ti.nama_part, AVG((ti.price - p.price) / NULLIF(ti.price, 0) * 100) as avg_gp
+            FROM transaction_items ti 
+            JOIN transactions t ON ti.transaction_id = t.id
+            JOIN parts p ON ti.no_part = p.no_part
+            WHERE ti.price > 0 AND (ti.price - p.price) < 0
+            GROUP BY ti.no_part, ti.nama_part 
+            LIMIT 50`);
+
+        // 3. Inventory Health
+        // Slow Moving: Stock > 0, Last Sale > 60 days
+        const slowMoving = await pool.query(`
+            SELECT p.no_part, p.nama_part, p.qty, MAX(t.tanggal) as last_sale
+            FROM parts p
+            LEFT JOIN transaction_items ti ON p.no_part = ti.no_part
+            LEFT JOIN transactions t ON ti.transaction_id = t.id
+            WHERE p.qty > 0
+            GROUP BY p.no_part, p.nama_part, p.qty
+            HAVING MAX(t.tanggal) < $1 OR MAX(t.tanggal) IS NULL
+            LIMIT 50
+        `, [sixtyDaysAgo]);
+
+        const deadStock = await pool.query(`
+            SELECT p.no_part, p.nama_part, p.qty, MAX(t.tanggal) as last_sale
+            FROM parts p
+            LEFT JOIN transaction_items ti ON p.no_part = ti.no_part
+            LEFT JOIN transactions t ON ti.transaction_id = t.id
+            WHERE p.qty > 0
+            GROUP BY p.no_part, p.nama_part, p.qty
+            HAVING MAX(t.tanggal) < $1 OR MAX(t.tanggal) IS NULL
+            LIMIT 50
+        `, [ninetyDaysAgo]);
+
+        // 4. Category Analysis
+        const byGroupPart = await pool.query(`
+            SELECT p.group_part as category, SUM(ti.subtotal) as revenue
+            FROM transaction_items ti
+            JOIN parts p ON ti.no_part = p.no_part
+            JOIN transactions t ON ti.transaction_id = t.id
+            GROUP BY p.group_part ORDER BY revenue DESC`);
+
+        // 5. Cross Sell (Pairs)
+        // Finding parts bought together in same transaction
+        // Limit to recent 1000 transactions for performance
+        const crossSell = await pool.query(`
+            WITH recent_trans AS (SELECT id FROM transactions ORDER BY tanggal DESC LIMIT 500)
+            SELECT t1.no_part as part_a, t1.nama_part as name_a, 
+                   t2.no_part as part_b, t2.nama_part as name_b, 
+                   COUNT(*) as frequency
+            FROM transaction_items t1
+            JOIN transaction_items t2 ON t1.transaction_id = t2.transaction_id
+            WHERE t1.transaction_id IN (SELECT id FROM recent_trans)
+            AND t1.no_part < t2.no_part
+            GROUP BY t1.no_part, t1.nama_part, t2.no_part, t2.nama_part
+            ORDER BY frequency DESC
+            LIMIT 10`);
+
+        res.json({
+            success: true,
+            data: {
+                best: {
+                    revenue: bestRevenue.rows.map(r => ({ ...r, total_value: parseFloat(r.total_value) })),
+                    qty: bestQty.rows.map(r => ({ ...r, total_value: parseInt(r.total_value) })),
+                    gp_percent: bestGPPercent.rows.map(r => ({ ...r, avg_gp: parseFloat(r.avg_gp) }))
+                },
+                worst: {
+                    gp_percent: worstGPPercent.rows.map(r => ({ ...r, avg_gp: parseFloat(r.avg_gp) })),
+                    negative_gp: negativeGP.rows.map(r => ({ ...r, avg_gp: parseFloat(r.avg_gp) }))
+                },
+                health: {
+                    slow_moving: slowMoving.rows,
+                    dead_stock: deadStock.rows
+                },
+                category: {
+                    group_part: byGroupPart.rows.map(r => ({ ...r, revenue: parseFloat(r.revenue) }))
+                },
+                cross_sell: crossSell.rows
+            }
+        });
+    } catch (error) {
+        next(error);
+    }
+};
 
 // Get admin dashboard data
 const getDashboard = async (req, res, next) => {
@@ -798,5 +936,5 @@ const getCustomerAnalytics = async (req, res, next) => {
 module.exports = {
     getDashboard, getSales, getSaleDetail, getStock, adjustStock,
     uploadSales, uploadStock, getUploadHistory, downloadTemplate, generateReport,
-    getCustomerAnalytics
+    getCustomerAnalytics, getInventoryAnalytics
 };

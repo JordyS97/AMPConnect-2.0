@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
     LayoutDashboard, Package, Star, TrendingUp, CreditCard, User, LogOut, Menu, X,
-    BarChart3, Upload, Users, FileText, Settings, ShoppingCart
+    BarChart3, Upload, Users, FileText, Settings, ShoppingCart, Layers
 } from 'lucide-react';
 
 const customerLinks = [
@@ -22,6 +22,7 @@ const adminLinks = [
     { path: '/admin/upload', label: 'Upload Data', icon: Upload },
     { path: '/admin/users', label: 'Manajemen User', icon: Users },
     { path: '/admin/customer-analytics', label: 'Analitik Customer', icon: TrendingUp },
+    { path: '/admin/inventory-analytics', label: 'Analitik Produk', icon: Layers },
     { path: '/admin/reports', label: 'Laporan', icon: FileText },
 ];
 
