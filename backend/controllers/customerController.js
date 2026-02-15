@@ -173,6 +173,10 @@ const getPointsHistory = async (req, res, next) => {
         // Get customer total points
         const customer = await pool.query('SELECT total_points, tier FROM customers WHERE id = $1', [req.user.id]);
 
+        // Calculate progress
+        const currentPoints = customer.rows[0].total_points;
+        const tierProgress = pointsToNextTier(currentPoints);
+
         res.json({
             success: true,
             data: {
@@ -180,8 +184,9 @@ const getPointsHistory = async (req, res, next) => {
                 total: parseInt(countResult.rows[0].count),
                 page: parseInt(page),
                 totalPages: Math.ceil(countResult.rows[0].count / limit),
-                currentPoints: customer.rows[0].total_points,
+                currentPoints,
                 currentTier: customer.rows[0].tier,
+                tierProgress
             }
         });
     } catch (error) {
@@ -189,44 +194,88 @@ const getPointsHistory = async (req, res, next) => {
     }
 };
 
-// Get transaction history
+// Get transaction history with details and filters
 const getTransactions = async (req, res, next) => {
     try {
-        const { page = 1, limit = 20, startDate, endDate, search } = req.query;
+        const { page = 1, limit = 20, startDate, endDate, search, category } = req.query;
         const offset = (page - 1) * limit;
 
-        let query = `SELECT * FROM transactions WHERE customer_id = $1`;
-        const params = [req.user.id];
+        // Base query for Transactions
+        let query = `SELECT DISTINCT t.id, t.no_faktur, t.tanggal, t.net_sales, t.points_earned, t.diskon
+                     FROM transactions t`;
+
+        let params = [req.user.id];
         let paramIndex = 2;
+        let whereClauses = [`t.customer_id = $1`];
+
+        // Joins if filtering by category
+        if (category && category !== 'Semua') {
+            query += ` JOIN transaction_items ti ON t.id = ti.transaction_id 
+                       JOIN parts p ON ti.no_part = p.no_part`;
+            whereClauses.push(`p.group_tobpm = $${paramIndex}`);
+            params.push(category);
+            paramIndex++;
+        }
 
         if (startDate) {
-            query += ` AND tanggal >= $${paramIndex}`;
+            whereClauses.push(`t.tanggal >= $${paramIndex}`);
             params.push(startDate);
             paramIndex++;
         }
         if (endDate) {
-            query += ` AND tanggal <= $${paramIndex}`;
+            whereClauses.push(`t.tanggal <= $${paramIndex}`);
             params.push(endDate);
             paramIndex++;
         }
         if (search) {
-            query += ` AND no_faktur ILIKE $${paramIndex}`;
+            whereClauses.push(`t.no_faktur ILIKE $${paramIndex}`);
             params.push(`%${search}%`);
             paramIndex++;
         }
 
-        const countQuery = query.replace('SELECT *', 'SELECT COUNT(*)');
+        query += ` WHERE ${whereClauses.join(' AND ')}`;
+
+        // Count query
+        const countQuery = `SELECT COUNT(DISTINCT t.id) FROM transactions t 
+                            ${category && category !== 'Semua' ? 'JOIN transaction_items ti ON t.id = ti.transaction_id JOIN parts p ON ti.no_part = p.no_part' : ''}
+                            WHERE ${whereClauses.join(' AND ')}`;
+
         const countResult = await pool.query(countQuery, params);
 
-        query += ` ORDER BY tanggal DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+        // Finalize main query
+        query += ` ORDER BY t.tanggal DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
         params.push(parseInt(limit), parseInt(offset));
 
         const result = await pool.query(query, params);
+        const transactions = result.rows;
+
+        // Fetch items for these transactions
+        if (transactions.length > 0) {
+            const txIds = transactions.map(t => t.id);
+            const itemsQuery = `
+                SELECT ti.transaction_id, ti.no_part, ti.nama_part, ti.qty, ti.price, ti.subtotal
+                FROM transaction_items ti
+                WHERE ti.transaction_id = ANY($1::int[])
+            `;
+            const itemsResult = await pool.query(itemsQuery, [txIds]);
+
+            // Map items to transactions
+            const itemsMap = {};
+            itemsResult.rows.forEach(item => {
+                if (!itemsMap[item.transaction_id]) itemsMap[item.transaction_id] = [];
+                itemsMap[item.transaction_id].push(item);
+            });
+
+            transactions.forEach(t => {
+                t.items = itemsMap[t.id] || [];
+                t.item_count = t.items.length;
+            });
+        }
 
         res.json({
             success: true,
             data: {
-                transactions: result.rows,
+                transactions,
                 total: parseInt(countResult.rows[0].count),
                 page: parseInt(page),
                 totalPages: Math.ceil(countResult.rows[0].count / limit),
@@ -300,6 +349,14 @@ const getTrends = async (req, res, next) => {
             [customerId]
         );
 
+        // Monthly points (last 12 months)
+        const monthlyPoints = await pool.query(
+            `SELECT TO_CHAR(tanggal, 'YYYY-MM') as month, SUM(points_earned) as total
+       FROM transactions WHERE customer_id = $1 AND tanggal >= NOW() - INTERVAL '12 months'
+       GROUP BY TO_CHAR(tanggal, 'YYYY-MM') ORDER BY month`,
+            [customerId]
+        );
+
         // Purchase frequency by month
         const purchaseFrequency = await pool.query(
             `SELECT TO_CHAR(tanggal, 'YYYY-MM') as month, COUNT(*) as count
@@ -318,6 +375,7 @@ const getTrends = async (req, res, next) => {
                     unique_parts: parseInt(uniqueParts.rows[0].count),
                 },
                 monthlySpending: monthlySpending.rows,
+                monthlyPoints: monthlyPoints.rows,
                 spendingByGroup: spendingByGroup.rows,
                 topParts: topParts.rows,
                 purchaseFrequency: purchaseFrequency.rows,
@@ -328,7 +386,127 @@ const getTrends = async (req, res, next) => {
     }
 };
 
+// Get Favorite Parts with Prediction
+const getFavoriteParts = async (req, res, next) => {
+    try {
+        const customerId = req.user.id;
+
+        const favoritesQuery = `
+            SELECT 
+                p.no_part, p.nama_part, p.qty as current_stock,
+                COUNT(DISTINCT t.id) as purchase_count,
+                SUM(ti.qty) as total_qty_purchased,
+                MAX(t.tanggal) as last_purchase_date,
+                (MAX(t.tanggal) - MIN(t.tanggal)) / NULLIF(COUNT(DISTINCT t.id) - 1, 0) as avg_days_between
+            FROM transaction_items ti
+            JOIN transactions t ON ti.transaction_id = t.id
+            JOIN parts p ON ti.no_part = p.no_part
+            WHERE t.customer_id = $1
+            GROUP BY p.no_part, p.nama_part, p.qty
+            HAVING COUNT(DISTINCT t.id) > 1
+            ORDER BY purchase_count DESC
+            LIMIT 20
+        `;
+
+        const result = await pool.query(favoritesQuery, [customerId]);
+
+        const favorites = result.rows.map(row => {
+            const lastDate = new Date(row.last_purchase_date);
+            const avgDays = row.avg_days_between || 30; // Default to 30 if only 2 purchases close together or null
+            const nextDate = new Date(lastDate);
+            nextDate.setDate(lastDate.getDate() + Math.round(avgDays));
+
+            const daysUntil = Math.ceil((nextDate - new Date()) / (1000 * 60 * 60 * 24));
+
+            return {
+                ...row,
+                avg_days_between: Math.round(avgDays),
+                next_purchase_prediction: nextDate,
+                days_until_next: daysUntil
+            };
+        });
+
+        res.json({ success: true, data: favorites });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// Get Period Comparison
+const getComparison = async (req, res, next) => {
+    try {
+        const { p1_start, p1_end, p2_start, p2_end } = req.query;
+        const customerId = req.user.id;
+
+        const getStats = async (start, end) => {
+            const stats = await pool.query(`
+                SELECT 
+                    COUNT(*) as trx_count,
+                    COALESCE(SUM(net_sales), 0) as total_spent,
+                    COALESCE(SUM(points_earned), 0) as points,
+                    COALESCE(SUM(diskon), 0) as discount
+                FROM transactions 
+                WHERE customer_id = $1 AND tanggal >= $2 AND tanggal <= $3
+            `, [customerId, start, end]);
+            return stats.rows[0];
+        };
+
+        const period1 = await getStats(p1_start, p1_end);
+        const period2 = await getStats(p2_start, p2_end);
+
+        res.json({
+            success: true,
+            data: {
+                period1: { ...period1, total_spent: parseFloat(period1.total_spent), discount: parseFloat(period1.discount) },
+                period2: { ...period2, total_spent: parseFloat(period2.total_spent), discount: parseFloat(period2.discount) }
+            }
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// Get Year End Report
+const getYearEndReport = async (req, res, next) => {
+    try {
+        const { year } = req.query;
+        const customerId = req.user.id;
+        const startDate = `${year}-01-01`;
+        const endDate = `${year}-12-31`;
+
+        const stats = await pool.query(`
+            SELECT 
+                COUNT(*) as total_trx,
+                COALESCE(SUM(net_sales), 0) as total_spent,
+                COALESCE(SUM(points_earned), 0) as total_points,
+                COALESCE(SUM(diskon), 0) as total_discount
+            FROM transactions 
+            WHERE customer_id = $1 AND tanggal >= $2 AND tanggal <= $3
+        `, [customerId, startDate, endDate]);
+
+        const topCategory = await pool.query(`
+            SELECT p.group_tobpm as category, SUM(ti.subtotal) as total
+            FROM transaction_items ti
+            JOIN transactions t ON ti.transaction_id = t.id
+            JOIN parts p ON ti.no_part = p.no_part
+            WHERE t.customer_id = $1 AND t.tanggal >= $2 AND t.tanggal <= $3
+            GROUP BY p.group_tobpm ORDER BY total DESC LIMIT 1
+        `, [customerId, startDate, endDate]);
+
+        res.json({
+            success: true,
+            data: {
+                summary: stats.rows[0],
+                top_category: topCategory.rows[0] || { category: '-', total: 0 }
+            }
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     getDashboard, getProfile, updateProfile, changePassword,
-    getPointsHistory, getTransactions, getTrends
+    getPointsHistory, getTransactions, getTrends,
+    getFavoriteParts, getComparison, getYearEndReport
 };

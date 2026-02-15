@@ -9,10 +9,15 @@ import CustomerRegister from './pages/customer/Register';
 import VerifyOTP from './pages/customer/VerifyOTP';
 import CustomerDashboard from './pages/customer/Dashboard';
 import Parts from './pages/customer/Parts';
-import Points from './pages/customer/Points';
-import Trends from './pages/customer/Trends';
 import Payment from './pages/customer/Payment';
 import Profile from './pages/customer/Profile';
+
+// New Customer Pages
+import PurchaseHistory from './pages/customer/PurchaseHistory';
+import SpendingAnalytics from './pages/customer/SpendingAnalytics';
+import Rewards from './pages/customer/Rewards';
+import FavoriteParts from './pages/customer/FavoriteParts';
+import Comparison from './pages/customer/Comparison';
 
 // Admin pages
 import AdminLogin from './pages/admin/Login';
@@ -69,10 +74,15 @@ export default function App() {
                         {/* Customer Protected */}
                         <Route path="/customer/dashboard" element={<CustomerRoute><CustomerDashboard /></CustomerRoute>} />
                         <Route path="/customer/parts" element={<CustomerRoute><Parts /></CustomerRoute>} />
-                        <Route path="/customer/points" element={<CustomerRoute><Points /></CustomerRoute>} />
-                        <Route path="/customer/trends" element={<CustomerRoute><Trends /></CustomerRoute>} />
                         <Route path="/customer/payment" element={<CustomerRoute><Payment /></CustomerRoute>} />
                         <Route path="/customer/profile" element={<CustomerRoute><Profile /></CustomerRoute>} />
+
+                        {/* New Routes */}
+                        <Route path="/customer/history" element={<CustomerRoute><PurchaseHistory /></CustomerRoute>} />
+                        <Route path="/customer/spending" element={<CustomerRoute><SpendingAnalytics /></CustomerRoute>} />
+                        <Route path="/customer/rewards" element={<CustomerRoute><Rewards /></CustomerRoute>} />
+                        <Route path="/customer/favorites" element={<CustomerRoute><FavoriteParts /></CustomerRoute>} />
+                        <Route path="/customer/comparison" element={<CustomerRoute><Comparison /></CustomerRoute>} />
 
                         {/* Admin Auth */}
                         <Route path="/admin/login" element={<AdminLogin />} />
