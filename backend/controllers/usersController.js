@@ -83,11 +83,11 @@ const addCustomer = async (req, res, next) => {
 const editCustomer = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const { name, phone, address } = req.body;
+        const { name, email, phone, address } = req.body;
 
         await pool.query(
-            'UPDATE customers SET name = COALESCE($1, name), phone = COALESCE($2, phone), address = COALESCE($3, address), updated_at = NOW() WHERE id = $4',
-            [name, phone, address, id]
+            'UPDATE customers SET name = COALESCE($1, name), email = COALESCE($2, email), phone = COALESCE($3, phone), address = COALESCE($4, address), updated_at = NOW() WHERE id = $5',
+            [name, email, phone, address, id]
         );
 
         await pool.query(
@@ -102,15 +102,14 @@ const editCustomer = async (req, res, next) => {
 };
 
 // Reset customer password
-// Reset customer password
 const resetCustomerPassword = async (req, res, next) => {
     try {
         const { id } = req.params;
         let { newPassword } = req.body;
 
         if (!newPassword) {
-            // Generate random 8-char password
-            newPassword = Math.random().toString(36).slice(-8);
+            // Default password if not provided
+            newPassword = "AMPConnect2!";
         }
 
         const salt = await bcrypt.genSalt(10);
