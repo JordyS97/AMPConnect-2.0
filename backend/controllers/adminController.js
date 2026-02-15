@@ -576,16 +576,17 @@ const uploadSales = async (req, res, next) => {
                         const qty = parseNum(item.qty);
                         const subtotal = parseNum(item.sales); // 'Sales' column is usually the line amount
                         const price = qty !== 0 ? subtotal / qty : 0; // Calculate unit price
+                        const itemDiskon = parseNum(item.diskon); // Capture item discount
 
-                        itemPlaceholders.push(`($${idx}, $${idx + 1}, $${idx + 2}, $${idx + 3}, $${idx + 4}, $${idx + 5})`);
-                        itemValues.push(transactionId, noPart, namaPart, qty, price, subtotal);
-                        idx += 6;
+                        itemPlaceholders.push(`($${idx}, $${idx + 1}, $${idx + 2}, $${idx + 3}, $${idx + 4}, $${idx + 5}, $${idx + 6})`);
+                        itemValues.push(transactionId, noPart, namaPart, qty, price, subtotal, itemDiskon);
+                        idx += 7;
                     }
 
                     // Batch insert items
                     if (itemValues.length > 0) {
                         await pool.query(
-                            `INSERT INTO transaction_items (transaction_id, no_part, nama_part, qty, price, subtotal)
+                            `INSERT INTO transaction_items (transaction_id, no_part, nama_part, qty, price, subtotal, diskon)
                              VALUES ${itemPlaceholders.join(', ')}`,
                             itemValues
                         );
@@ -1104,8 +1105,33 @@ const getPriceAnalytics = async (req, res, next) => {
         const trend = await pool.query(trendQuery, [oneYearAgo]);
 
         // 3. Top Discounted Parts (by Amount)
-        // Disabled because transaction_items does not have diskon column
-        const topParts = { rows: [] };
+        // Ensure column exists first (Lazy Migration)
+        try {
+            await pool.query('ALTER TABLE transaction_items ADD COLUMN IF NOT EXISTS diskon DECIMAL(15,2) DEFAULT 0');
+        } catch (e) { /* ignore if exists/error */ }
+
+        // Shows Rank, Part No, Part Name, Discount % (Total Discount / Total Sales Revenue)
+        const topPartsQuery = `
+            SELECT ti.no_part, ti.nama_part, 
+                   SUM(ti.diskon) as total_discount, 
+                   SUM(ti.subtotal) as total_revenue,
+                   CASE WHEN SUM(ti.subtotal) > 0 THEN (SUM(ti.diskon) / SUM(ti.subtotal)) * 100 ELSE 0 END as discount_percent
+            FROM transaction_items ti
+            WHERE ti.diskon > 0
+            GROUP BY ti.no_part, ti.nama_part
+            ORDER BY total_discount DESC LIMIT 10
+        `;
+        const topPartsResults = await pool.query(topPartsQuery);
+
+        const topParts = {
+            rows: topPartsResults.rows.map((row, index) => ({
+                rank: index + 1,
+                no_part: row.no_part,
+                nama_part: row.nama_part,
+                total_discount: parseFloat(row.total_discount),
+                discount_percent: parseFloat(row.discount_percent)
+            }))
+        };
 
         // 4. Top Discounted Customers
         const topCustomersQuery = `

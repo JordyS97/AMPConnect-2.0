@@ -191,16 +191,16 @@ export default function PricingAnalytics() {
                     <h3>🏆 Top 10 Produk Didiskon (Value)</h3>
                     <div className="table-container">
                         <table className="table-sm">
-                            <thead><tr><th>Part</th><th>Qty Sold</th><th>Total Diskon</th></tr></thead>
+                            <thead><tr><th style={{ width: '50px' }}>Rank</th><th>Part Number</th><th>Part Name</th><th style={{ textAlign: 'right' }}>% Discount</th></tr></thead>
                             <tbody>
                                 {lists.top_parts.map((p, i) => (
                                     <tr key={i}>
-                                        <td>
-                                            <div style={{ fontWeight: 500 }}>{p.nama_part}</div>
-                                            <div style={{ fontSize: '0.75rem', color: '#64748b', fontFamily: 'monospace' }}>{p.no_part}</div>
+                                        <td style={{ textAlign: 'center' }}>{p.rank}</td>
+                                        <td style={{ fontFamily: 'monospace', color: '#64748b' }}>{p.no_part}</td>
+                                        <td style={{ fontWeight: 500 }}>{p.nama_part}</td>
+                                        <td style={{ textAlign: 'right', fontWeight: 'bold', color: '#dc2626' }}>
+                                            {formatPercent(p.discount_percent)}
                                         </td>
-                                        <td>{p.qty_sold}</td>
-                                        <td>{formatCurrency(p.total_discount)}</td>
                                     </tr>
                                 ))}
                             </tbody>
