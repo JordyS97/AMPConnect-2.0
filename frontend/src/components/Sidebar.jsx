@@ -3,14 +3,18 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
     LayoutDashboard, Package, Star, TrendingUp, CreditCard, User, LogOut, Menu, X,
-    BarChart3, Upload, Users, FileText, Settings, ShoppingCart, Layers, Percent
+    BarChart3, Upload, Users, FileText, Settings, ShoppingCart, Layers, Percent,
+    Clock, Gift, Heart
 } from 'lucide-react';
 
 const customerLinks = [
     { path: '/customer/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { path: '/customer/history', label: 'Riwayat Pembelian', icon: Clock },
+    { path: '/customer/spending', label: 'Analisis Belanja', icon: TrendingUp },
+    { path: '/customer/rewards', label: 'Reward Points', icon: Gift },
+    { path: '/customer/favorites', label: 'Part Favorit', icon: Heart },
+    { path: '/customer/comparison', label: 'Laporan', icon: FileText },
     { path: '/customer/parts', label: 'Stok Part', icon: Package },
-    { path: '/customer/points', label: 'Poin Reward', icon: Star },
-    { path: '/customer/trends', label: 'Tren Pembelian', icon: TrendingUp },
     { path: '/customer/payment', label: 'Pembayaran', icon: CreditCard },
     { path: '/customer/profile', label: 'Profil', icon: User },
 ];
