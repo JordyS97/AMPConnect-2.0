@@ -14,6 +14,8 @@ export default function Sales() {
     const [filters, setFilters] = useState({ startDate: '', endDate: '', customer: '' });
     const [activeTab, setActiveTab] = useState('overview'); // overview, analytics
     const [analyticsData, setAnalyticsData] = useState(null);
+    const [page, setPage] = useState(1);
+    const [selectedTx, setSelectedTx] = useState(null);
 
     useEffect(() => {
         if (activeTab === 'overview') fetchData();
