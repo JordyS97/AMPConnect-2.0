@@ -27,20 +27,9 @@ const getInventoryAnalytics = async (req, res, next) => {
             FROM transaction_items ti JOIN transactions t ON ti.transaction_id = t.id
             GROUP BY ti.no_part, ti.nama_part ORDER BY total_value DESC LIMIT 20`);
 
-        const bestProfit = await pool.query(`
-            SELECT ti.no_part, ti.nama_part, 
-            SUM(CASE WHEN ti.price > 0 THEN ti.subtotal - (ti.qty * (SELECT price FROM parts WHERE no_part = ti.no_part LIMIT 1)) ELSE 0 END) as total_value
-            FROM transaction_items ti JOIN transactions t ON ti.transaction_id = t.id
-            GROUP BY ti.no_part, ti.nama_part ORDER BY total_value DESC LIMIT 20`);
-        // Note: Accurate profit per item requires cost history, using current part price as proxy or just relying on aggregate GP if available.
-        // Actually, let's use the 'gross_profit' from transaction if available, but transaction_items doesn't have it.
-        // Simplified: We'll stick to Revenue/Qty for now as they are most reliable. BestProfit might be tricky without item-level cost in transaction_items.
-        // Let's use avg gp% from parts table if available or skip specific item profit for now to avoid calc errors.
-        // Alternative: Use transactions table GP for "Best Transactions" or derive from parts.
-        // Let's use `bestRevenue` and `bestQty` as primary. For GP%, we query parts.
-
+        // Using p.amount as reference for cost/price since p.price does not exist
         const bestGPPercent = await pool.query(`
-            SELECT ti.no_part, ti.nama_part, AVG((ti.price - p.price) / NULLIF(ti.price, 0) * 100) as avg_gp
+            SELECT ti.no_part, ti.nama_part, AVG((ti.price - COALESCE(p.amount, 0)) / NULLIF(ti.price, 0) * 100) as avg_gp
             FROM transaction_items ti 
             JOIN transactions t ON ti.transaction_id = t.id
             JOIN parts p ON ti.no_part = p.no_part
@@ -51,7 +40,7 @@ const getInventoryAnalytics = async (req, res, next) => {
 
         // 2. Worst Performers
         const worstGPPercent = await pool.query(`
-            SELECT ti.no_part, ti.nama_part, AVG((ti.price - p.price) / NULLIF(ti.price, 0) * 100) as avg_gp
+            SELECT ti.no_part, ti.nama_part, AVG((ti.price - COALESCE(p.amount, 0)) / NULLIF(ti.price, 0) * 100) as avg_gp
             FROM transaction_items ti 
             JOIN transactions t ON ti.transaction_id = t.id
             JOIN parts p ON ti.no_part = p.no_part
@@ -61,11 +50,11 @@ const getInventoryAnalytics = async (req, res, next) => {
             ORDER BY avg_gp ASC LIMIT 20`);
 
         const negativeGP = await pool.query(`
-             SELECT ti.no_part, ti.nama_part, AVG((ti.price - p.price) / NULLIF(ti.price, 0) * 100) as avg_gp
+             SELECT ti.no_part, ti.nama_part, AVG((ti.price - COALESCE(p.amount, 0)) / NULLIF(ti.price, 0) * 100) as avg_gp
             FROM transaction_items ti 
             JOIN transactions t ON ti.transaction_id = t.id
             JOIN parts p ON ti.no_part = p.no_part
-            WHERE ti.price > 0 AND (ti.price - p.price) < 0
+            WHERE ti.price > 0 AND (ti.price - COALESCE(p.amount, 0)) < 0
             GROUP BY ti.no_part, ti.nama_part 
             LIMIT 50`);
 
@@ -94,12 +83,13 @@ const getInventoryAnalytics = async (req, res, next) => {
         `, [ninetyDaysAgo]);
 
         // 4. Category Analysis
+        // Changed group_part to group_tobpm for consistency
         const byGroupPart = await pool.query(`
-            SELECT p.group_part as category, SUM(ti.subtotal) as revenue
+            SELECT COALESCE(p.group_tobpm, 'Lainnya') as category, SUM(ti.subtotal) as revenue
             FROM transaction_items ti
             JOIN parts p ON ti.no_part = p.no_part
             JOIN transactions t ON ti.transaction_id = t.id
-            GROUP BY p.group_part ORDER BY revenue DESC`);
+            GROUP BY p.group_tobpm ORDER BY revenue DESC`);
 
         // 5. Cross Sell (Pairs)
         // Finding parts bought together in same transaction
@@ -1041,7 +1031,7 @@ const getPriceAnalytics = async (req, res, next) => {
         // Compare transactions with discount vs without discount
         const impactQuery = `
             SELECT 
-                CASE WHEN total_discount > 0 THEN 'Discounted' ELSE 'No Discount' END as type,
+                CASE WHEN diskon > 0 THEN 'Discounted' ELSE 'No Discount' END as type,
                 COUNT(*) as trx_count,
                 SUM(net_sales) as total_sales,
                 SUM(gross_profit) as total_profit,
@@ -1056,15 +1046,16 @@ const getPriceAnalytics = async (req, res, next) => {
         const noDiscountStats = impact.rows.find(r => r.type === 'No Discount') || { trx_count: 0, total_sales: 0, total_profit: 0, avg_ticket_size: 0, avg_gp_percent: 0 };
 
         const totalSales = parseFloat(discountedStats.total_sales) + parseFloat(noDiscountStats.total_sales);
-        const totalDiscountQuery = `SELECT SUM(total_discount) as total_discount FROM transactions`;
+        const totalDiscountQuery = `SELECT SUM(diskon) as total_discount FROM transactions`;
         const totalDiscountResult = await pool.query(totalDiscountQuery);
         const totalDiscount = parseFloat(totalDiscountResult.rows[0].total_discount || 0);
 
         // 2. Monthly Discount Trend
+        // Using total_faktur instead of gross_sales which does not exist
         const trendQuery = `
             SELECT TO_CHAR(tanggal, 'YYYY-MM') as month, 
-                   SUM(total_discount) as total_discount,
-                   (SUM(total_discount) / NULLIF(SUM(gross_sales), 0)) * 100 as discount_percent
+                   SUM(diskon) as total_discount,
+                   (SUM(diskon) / NULLIF(SUM(total_faktur), 0)) * 100 as discount_percent
             FROM transactions
             WHERE tanggal >= $1
             GROUP BY month ORDER BY month ASC
@@ -1072,21 +1063,15 @@ const getPriceAnalytics = async (req, res, next) => {
         const trend = await pool.query(trendQuery, [oneYearAgo]);
 
         // 3. Top Discounted Parts (by Amount)
-        const topPartsQuery = `
-            SELECT ti.no_part, ti.nama_part, SUM(ti.diskon) as total_discount, SUM(ti.qty) as qty_sold
-            FROM transaction_items ti
-            WHERE ti.diskon > 0
-            GROUP BY ti.no_part, ti.nama_part
-            ORDER BY total_discount DESC LIMIT 10
-        `;
-        const topParts = await pool.query(topPartsQuery);
+        // Disabled because transaction_items does not have diskon column
+        const topParts = { rows: [] };
 
         // 4. Top Discounted Customers
         const topCustomersQuery = `
-            SELECT c.name, COUNT(t.id) as trx_count, SUM(t.total_discount) as total_discount
+            SELECT c.name, COUNT(t.id) as trx_count, SUM(t.diskon) as total_discount
             FROM transactions t
             JOIN customers c ON t.customer_id = c.id
-            WHERE t.total_discount > 0
+            WHERE t.diskon > 0
             GROUP BY c.id, c.name
             ORDER BY total_discount DESC LIMIT 10
         `;
@@ -1094,10 +1079,11 @@ const getPriceAnalytics = async (req, res, next) => {
 
         // 5. Alerts
         // Excessive Discount (> 50%)
+        // Using total_faktur instead of gross_sales
         const highDiscountAlerts = await pool.query(`
-            SELECT no_faktur, tanggal, total_discount, (total_discount / NULLIF(gross_sales, 0)) * 100 as discount_percent
+            SELECT no_faktur, tanggal, diskon as total_discount, (diskon / NULLIF(total_faktur, 0)) * 100 as discount_percent
             FROM transactions
-            WHERE (total_discount / NULLIF(gross_sales, 0)) > 0.5
+            WHERE (diskon / NULLIF(total_faktur, 0)) > 0.5
             ORDER BY tanggal DESC LIMIT 20
         `);
 
@@ -1135,7 +1121,7 @@ const getPriceAnalytics = async (req, res, next) => {
                     discount_percent: parseFloat(r.discount_percent)
                 })),
                 lists: {
-                    top_parts: topParts.rows.map(r => ({ ...r, total_discount: parseFloat(r.total_discount) })),
+                    top_parts: [], // Removed until item-level logic is clear
                     top_customers: topCustomers.rows.map(r => ({ ...r, total_discount: parseFloat(r.total_discount) }))
                 },
                 alerts: {
