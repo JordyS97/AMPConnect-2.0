@@ -1027,8 +1027,129 @@ const getCustomerAnalytics = async (req, res, next) => {
     }
 };
 
+// Get pricing & discount analytics
+const getPriceAnalytics = async (req, res, next) => {
+    try {
+        const today = new Date();
+        const thirtyDaysAgo = new Date(today);
+        thirtyDaysAgo.setDate(today.getDate() - 30);
+        const oneYearAgo = new Date(today);
+        oneYearAgo.setMonth(today.getMonth() - 12);
+
+        // 1. Discount Metrics & Impact Analysis
+        // Compare transactions with discount vs without discount
+        const impactQuery = `
+            SELECT 
+                CASE WHEN total_discount > 0 THEN 'Discounted' ELSE 'No Discount' END as type,
+                COUNT(*) as trx_count,
+                SUM(net_sales) as total_sales,
+                SUM(gross_profit) as total_profit,
+                AVG(net_sales) as avg_ticket_size,
+                AVG(gp_percent) as avg_gp_percent
+            FROM transactions
+            GROUP BY type
+        `;
+        const impact = await pool.query(impactQuery);
+
+        const discountedStats = impact.rows.find(r => r.type === 'Discounted') || { trx_count: 0, total_sales: 0, total_profit: 0, avg_ticket_size: 0, avg_gp_percent: 0 };
+        const noDiscountStats = impact.rows.find(r => r.type === 'No Discount') || { trx_count: 0, total_sales: 0, total_profit: 0, avg_ticket_size: 0, avg_gp_percent: 0 };
+
+        const totalSales = parseFloat(discountedStats.total_sales) + parseFloat(noDiscountStats.total_sales);
+        const totalDiscountQuery = `SELECT SUM(total_discount) as total_discount FROM transactions`;
+        const totalDiscountResult = await pool.query(totalDiscountQuery);
+        const totalDiscount = parseFloat(totalDiscountResult.rows[0].total_discount || 0);
+
+        // 2. Monthly Discount Trend
+        const trendQuery = `
+            SELECT TO_CHAR(tanggal, 'YYYY-MM') as month, 
+                   SUM(total_discount) as total_discount,
+                   (SUM(total_discount) / NULLIF(SUM(gross_sales), 0)) * 100 as discount_percent
+            FROM transactions
+            WHERE tanggal >= $1
+            GROUP BY month ORDER BY month ASC
+        `;
+        const trend = await pool.query(trendQuery, [oneYearAgo]);
+
+        // 3. Top Discounted Parts (by Amount)
+        const topPartsQuery = `
+            SELECT ti.no_part, ti.nama_part, SUM(ti.diskon) as total_discount, SUM(ti.qty) as qty_sold
+            FROM transaction_items ti
+            WHERE ti.diskon > 0
+            GROUP BY ti.no_part, ti.nama_part
+            ORDER BY total_discount DESC LIMIT 10
+        `;
+        const topParts = await pool.query(topPartsQuery);
+
+        // 4. Top Discounted Customers
+        const topCustomersQuery = `
+            SELECT c.name, COUNT(t.id) as trx_count, SUM(t.total_discount) as total_discount
+            FROM transactions t
+            JOIN customers c ON t.customer_id = c.id
+            WHERE t.total_discount > 0
+            GROUP BY c.id, c.name
+            ORDER BY total_discount DESC LIMIT 10
+        `;
+        const topCustomers = await pool.query(topCustomersQuery);
+
+        // 5. Alerts
+        // Excessive Discount (> 50%)
+        const highDiscountAlerts = await pool.query(`
+            SELECT no_faktur, tanggal, total_discount, (total_discount / NULLIF(gross_sales, 0)) * 100 as discount_percent
+            FROM transactions
+            WHERE (total_discount / NULLIF(gross_sales, 0)) > 0.5
+            ORDER BY tanggal DESC LIMIT 20
+        `);
+
+        // Negative Profit (Below Cost)
+        const negativeGPAlerts = await pool.query(`
+            SELECT no_faktur, tanggal, net_sales, gross_profit, gp_percent
+            FROM transactions
+            WHERE gross_profit < 0
+            ORDER BY tanggal DESC LIMIT 20
+        `);
+
+        res.json({
+            success: true,
+            data: {
+                metrics: {
+                    total_discount: totalDiscount,
+                    discount_rate: totalSales > 0 ? (totalDiscount / (totalSales + totalDiscount)) * 100 : 0, // Discount as % of Gross
+                    avg_discount_trx: parseFloat(discountedStats.trx_count) > 0 ? totalDiscount / parseFloat(discountedStats.trx_count) : 0,
+                    trx_with_discount: parseInt(discountedStats.trx_count),
+                    trx_no_discount: parseInt(noDiscountStats.trx_count)
+                },
+                impact: {
+                    discounted: {
+                        avg_ticket: parseFloat(discountedStats.avg_ticket_size),
+                        avg_gp: parseFloat(discountedStats.avg_gp_percent)
+                    },
+                    no_discount: {
+                        avg_ticket: parseFloat(noDiscountStats.avg_ticket_size),
+                        avg_gp: parseFloat(noDiscountStats.avg_gp_percent)
+                    }
+                },
+                trend: trend.rows.map(r => ({
+                    month: r.month,
+                    total_discount: parseFloat(r.total_discount),
+                    discount_percent: parseFloat(r.discount_percent)
+                })),
+                lists: {
+                    top_parts: topParts.rows.map(r => ({ ...r, total_discount: parseFloat(r.total_discount) })),
+                    top_customers: topCustomers.rows.map(r => ({ ...r, total_discount: parseFloat(r.total_discount) }))
+                },
+                alerts: {
+                    high_discount: highDiscountAlerts.rows.map(r => ({ ...r, discount_percent: parseFloat(r.discount_percent) })),
+                    negative_gp: negativeGPAlerts.rows.map(r => ({ ...r, gp_percent: parseFloat(r.gp_percent) }))
+                }
+            }
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     getDashboard, getSales, getSaleDetail, getStock, adjustStock,
     uploadSales, uploadStock, getUploadHistory, downloadTemplate, generateReport,
-    getCustomerAnalytics, getInventoryAnalytics, getSalesAnalytics
+    getCustomerAnalytics, getInventoryAnalytics, getSalesAnalytics, getPriceAnalytics
 };
