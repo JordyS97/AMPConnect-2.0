@@ -335,14 +335,14 @@ const getTrends = async (req, res, next) => {
             [customerId]
         );
 
-        // Spending by group material
+        // Spending by group tobpm
         const spendingByGroup = await pool.query(
-            `SELECT COALESCE(p.group_material, 'Lainnya') as group_name, SUM(ti.subtotal) as total
+            `SELECT COALESCE(p.group_tobpm, 'Lainnya') as group_name, SUM(ti.subtotal) as total
        FROM transaction_items ti
        JOIN transactions t ON ti.transaction_id = t.id
        LEFT JOIN parts p ON ti.no_part = p.no_part
        WHERE t.customer_id = $1
-       GROUP BY p.group_material ORDER BY total DESC`,
+       GROUP BY p.group_tobpm ORDER BY total DESC`,
             [customerId]
         );
 
