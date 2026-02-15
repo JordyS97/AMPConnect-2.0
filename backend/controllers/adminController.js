@@ -3,103 +3,9 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { parseExcelFile, validateSalesColumns, validateStockColumns, createSalesTemplate, createStockTemplate, normalizeSalesRow } = require('../utils/excelParser');
-const { parseExcelFile, validateSalesColumns, validateStockColumns, createSalesTemplate, createStockTemplate, normalizeSalesRow } = require('../utils/excelParser');
+
 const { calculatePoints, determineTier } = require('../utils/pointsCalculator');
 const XLSX = require('xlsx');
-
-// Get sales analytics (Trends & Patterns)
-const getSalesAnalytics = async (req, res, next) => {
-    try {
-        const today = new Date();
-        const thirtyDaysAgo = new Date(today);
-        thirtyDaysAgo.setDate(today.getDate() - 30);
-        const oneYearAgo = new Date(today);
-        oneYearAgo.setMonth(today.getMonth() - 12);
-
-        // 1. Daily Trend (Last 30 Days)
-        const dailyTrend = await pool.query(`
-            SELECT TO_CHAR(tanggal, 'YYYY-MM-DD') as date, SUM(net_sales) as total_sales, COUNT(*) as transactions
-            FROM transactions
-            WHERE tanggal >= $1
-            GROUP BY date ORDER BY date ASC
-        `, [thirtyDaysAgo]);
-
-        // 2. Weekly Pattern (Avg per Day of Week)
-        const weeklyPattern = await pool.query(`
-            SELECT TRIM(TO_CHAR(tanggal, 'Day')) as day_name, 
-                   EXTRACT(DOW FROM tanggal) as day_idx,
-                   AVG(net_sales) as avg_sales
-            FROM transactions
-            GROUP BY day_name, day_idx ORDER BY day_idx ASC
-        `);
-
-        // 3. Monthly Trend (Last 12 Months)
-        const monthlyTrend = await pool.query(`
-            SELECT TO_CHAR(tanggal, 'YYYY-MM') as month, SUM(net_sales) as total_sales
-            FROM transactions
-            WHERE tanggal >= $1
-            GROUP BY month ORDER BY month ASC
-        `, [oneYearAgo]);
-
-        // 4. Growth Metrics (MoM, YoY)
-        const currentMonth = today.getMonth() + 1;
-        const currentYear = today.getFullYear();
-        const lastMonth = currentMonth === 1 ? 12 : currentMonth - 1;
-        const lastMonthYear = currentMonth === 1 ? currentYear - 1 : currentYear;
-        const lastYear = currentYear - 1;
-
-        const growthQuery = `
-            SELECT 
-                SUM(CASE WHEN EXTRACT(MONTH FROM tanggal) = $1 AND EXTRACT(YEAR FROM tanggal) = $2 THEN net_sales ELSE 0 END) as current_month_sales,
-                SUM(CASE WHEN EXTRACT(MONTH FROM tanggal) = $3 AND EXTRACT(YEAR FROM tanggal) = $4 THEN net_sales ELSE 0 END) as last_month_sales,
-                SUM(CASE WHEN EXTRACT(MONTH FROM tanggal) = $1 AND EXTRACT(YEAR FROM tanggal) = $5 THEN net_sales ELSE 0 END) as last_year_sales
-            FROM transactions
-        `;
-        const growth = await pool.query(growthQuery, [currentMonth, currentYear, lastMonth, lastMonthYear, lastYear]);
-        const { current_month_sales, last_month_sales, last_year_sales } = growth.rows[0];
-
-        const momGrowth = last_month_sales > 0 ? ((current_month_sales - last_month_sales) / last_month_sales) * 100 : 0;
-        const yoyGrowth = last_year_sales > 0 ? ((current_month_sales - last_year_sales) / last_year_sales) * 100 : 0;
-
-        // 5. Transaction Type Analysis
-        const byType = await pool.query(`
-            SELECT tipe_faktur, SUM(net_sales) as total_sales, COUNT(*) as count
-            FROM transactions
-            GROUP BY tipe_faktur ORDER BY total_sales DESC
-        `);
-
-        // 6. Forecasting (Simple Moving Average - Last 30 days avg extended to next 30 days)
-        const avgDailySales = dailyTrend.rows.reduce((sum, r) => sum + parseFloat(r.total_sales), 0) / (dailyTrend.rows.length || 1);
-        const forecast = [];
-        for (let i = 1; i <= 30; i++) {
-            const d = new Date(today);
-            d.setDate(today.getDate() + i);
-            forecast.push({
-                date: d.toISOString().split('T')[0],
-                predicted_sales: avgDailySales // basic flat forecast for now
-            });
-        }
-
-        res.json({
-            success: true,
-            data: {
-                daily: dailyTrend.rows.map(r => ({ ...r, total_sales: parseFloat(r.total_sales) })),
-                weekly: weeklyPattern.rows.map(r => ({ ...r, avg_sales: parseFloat(r.avg_sales) })),
-                monthly: monthlyTrend.rows.map(r => ({ ...r, total_sales: parseFloat(r.total_sales) })),
-                growth: {
-                    mom: parseFloat(momGrowth),
-                    yoy: parseFloat(yoyGrowth),
-                    current_month: parseFloat(current_month_sales),
-                    last_month: parseFloat(last_month_sales)
-                },
-                by_type: byType.rows.map(r => ({ ...r, total_sales: parseFloat(r.total_sales) })),
-                forecast
-            }
-        });
-    } catch (error) {
-        next(error);
-    }
-};
 
 // Get inventory analytics
 const getInventoryAnalytics = async (req, res, next) => {
@@ -1027,6 +933,101 @@ const getCustomerAnalytics = async (req, res, next) => {
     }
 };
 
+
+// Get sales analytics (Trends & Patterns)
+const getSalesAnalytics = async (req, res, next) => {
+    try {
+        const today = new Date();
+        const thirtyDaysAgo = new Date(today);
+        thirtyDaysAgo.setDate(today.getDate() - 30);
+        const oneYearAgo = new Date(today);
+        oneYearAgo.setMonth(today.getMonth() - 12);
+
+        // 1. Daily Trend (Last 30 Days)
+        const dailyTrend = await pool.query(`
+            SELECT TO_CHAR(tanggal, 'YYYY-MM-DD') as date, SUM(net_sales) as total_sales, COUNT(*) as transactions
+            FROM transactions
+            WHERE tanggal >= $1
+            GROUP BY date ORDER BY date ASC
+        `, [thirtyDaysAgo]);
+
+        // 2. Weekly Pattern (Avg per Day of Week)
+        const weeklyPattern = await pool.query(`
+            SELECT TRIM(TO_CHAR(tanggal, 'Day')) as day_name, 
+                   EXTRACT(DOW FROM tanggal) as day_idx,
+                   AVG(net_sales) as avg_sales
+            FROM transactions
+            GROUP BY day_name, day_idx ORDER BY day_idx ASC
+        `);
+
+        // 3. Monthly Trend (Last 12 Months)
+        const monthlyTrend = await pool.query(`
+            SELECT TO_CHAR(tanggal, 'YYYY-MM') as month, SUM(net_sales) as total_sales
+            FROM transactions
+            WHERE tanggal >= $1
+            GROUP BY month ORDER BY month ASC
+        `, [oneYearAgo]);
+
+        // 4. Growth Metrics (MoM, YoY)
+        const currentMonth = today.getMonth() + 1;
+        const currentYear = today.getFullYear();
+        const lastMonth = currentMonth === 1 ? 12 : currentMonth - 1;
+        const lastMonthYear = currentMonth === 1 ? currentYear - 1 : currentYear;
+        const lastYear = currentYear - 1;
+
+        const growthQuery = `
+            SELECT 
+                SUM(CASE WHEN EXTRACT(MONTH FROM tanggal) = $1 AND EXTRACT(YEAR FROM tanggal) = $2 THEN net_sales ELSE 0 END) as current_month_sales,
+                SUM(CASE WHEN EXTRACT(MONTH FROM tanggal) = $3 AND EXTRACT(YEAR FROM tanggal) = $4 THEN net_sales ELSE 0 END) as last_month_sales,
+                SUM(CASE WHEN EXTRACT(MONTH FROM tanggal) = $1 AND EXTRACT(YEAR FROM tanggal) = $5 THEN net_sales ELSE 0 END) as last_year_sales
+            FROM transactions
+        `;
+        const growth = await pool.query(growthQuery, [currentMonth, currentYear, lastMonth, lastMonthYear, lastYear]);
+        const { current_month_sales, last_month_sales, last_year_sales } = growth.rows[0];
+
+        const momGrowth = last_month_sales > 0 ? ((current_month_sales - last_month_sales) / last_month_sales) * 100 : 0;
+        const yoyGrowth = last_year_sales > 0 ? ((current_month_sales - last_year_sales) / last_year_sales) * 100 : 0;
+
+        // 5. Transaction Type Analysis
+        const byType = await pool.query(`
+            SELECT tipe_faktur, SUM(net_sales) as total_sales, COUNT(*) as count
+            FROM transactions
+            GROUP BY tipe_faktur ORDER BY total_sales DESC
+        `);
+
+        // 6. Forecasting (Simple Moving Average - Last 30 days avg extended to next 30 days)
+        const avgDailySales = dailyTrend.rows.reduce((sum, r) => sum + parseFloat(r.total_sales), 0) / (dailyTrend.rows.length || 1);
+        const forecast = [];
+        for (let i = 1; i <= 30; i++) {
+            const d = new Date(today);
+            d.setDate(today.getDate() + i);
+            forecast.push({
+                date: d.toISOString().split('T')[0],
+                predicted_sales: avgDailySales // basic flat forecast for now
+            });
+        }
+
+        res.json({
+            success: true,
+            data: {
+                daily: dailyTrend.rows.map(r => ({ ...r, total_sales: parseFloat(r.total_sales) })),
+                weekly: weeklyPattern.rows.map(r => ({ ...r, avg_sales: parseFloat(r.avg_sales) })),
+                monthly: monthlyTrend.rows.map(r => ({ ...r, total_sales: parseFloat(r.total_sales) })),
+                growth: {
+                    mom: parseFloat(momGrowth),
+                    yoy: parseFloat(yoyGrowth),
+                    current_month: parseFloat(current_month_sales),
+                    last_month: parseFloat(last_month_sales)
+                },
+                by_type: byType.rows.map(r => ({ ...r, total_sales: parseFloat(r.total_sales) })),
+                forecast
+            }
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
 // Get pricing & discount analytics
 const getPriceAnalytics = async (req, res, next) => {
     try {
@@ -1153,3 +1154,4 @@ module.exports = {
     uploadSales, uploadStock, getUploadHistory, downloadTemplate, generateReport,
     getCustomerAnalytics, getInventoryAnalytics, getSalesAnalytics, getPriceAnalytics
 };
+

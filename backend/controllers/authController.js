@@ -28,31 +28,19 @@ const register = async (req, res, next) => {
         const salt = await bcrypt.genSalt(10);
         const password_hash = await bcrypt.hash(password, salt);
 
-        // Update customer record
+        // Update customer record (Auto-verify)
         await pool.query(
-            `UPDATE customers SET name = $1, email = $2, phone = $3, password_hash = $4, updated_at = NOW() WHERE id = $5`,
+            `UPDATE customers SET name = $1, email = $2, phone = $3, password_hash = $4, is_verified = true, updated_at = NOW() WHERE id = $5`,
             [name, email, phone, password_hash, existingCustomer.id]
-        );
-
-        // Generate OTP
-        const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-        const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-
-        await pool.query(
-            'INSERT INTO otp_codes (email, code, expires_at) VALUES ($1, $2, $3)',
-            [email, otpCode, expiresAt]
         );
 
         // Log activity
         await pool.query(
             `INSERT INTO activity_logs (user_type, user_id, user_name, action, description, ip_address) VALUES ($1, $2, $3, $4, $5, $6)`,
-            ['customer', existingCustomer.id, name, 'Register', 'Customer mendaftar akun baru', req.ip]
+            ['customer', existingCustomer.id, name, 'Register', 'Customer mendaftar akun baru (Auto-verified)', req.ip]
         );
 
-        // In dev mode, log OTP to console
-        console.log(`\n📧 OTP for ${email}: ${otpCode}\n`);
-
-        res.status(201).json({ success: true, message: 'Registrasi berhasil. Silakan verifikasi OTP.', email });
+        res.status(201).json({ success: true, message: 'Registrasi berhasil. Silakan login.' });
     } catch (error) {
         next(error);
     }
@@ -74,7 +62,9 @@ const login = async (req, res, next) => {
         }
 
         if (!customer.is_verified) {
-            return res.status(403).json({ success: false, message: 'Akun belum diverifikasi. Silakan verifikasi OTP terlebih dahulu.', needsVerification: true, email });
+            // Auto-verify on login if not verified (Legacy support for skipped OTP)
+            await pool.query('UPDATE customers SET is_verified = true WHERE id = $1', [customer.id]);
+            customer.is_verified = true;
         }
 
         const validPassword = await bcrypt.compare(password, customer.password_hash);
