@@ -1,3 +1,4 @@
+// AMPConnect Frontend v2.1 - Deployment Trigger
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './components/Toast';
