@@ -74,8 +74,8 @@ const getDashboard = async (req, res, next) => {
                     avg_gp: parseFloat(todaySales.rows[0].avg_gp),
                 },
                 salesTrend: salesTrend.rows,
-                salesByGroup: salesByGroup.rows,
-                topParts: topParts.rows,
+                salesByGroup: salesByGroup.rows.map(r => ({ ...r, total: parseFloat(r.total) })),
+                topParts: topParts.rows.map(r => ({ ...r, total_value: parseFloat(r.total_value) })),
                 monthlyComparison: monthlyComparison.rows[0],
                 alerts: {
                     low_stock: parseInt(lowStock.rows[0].count),
