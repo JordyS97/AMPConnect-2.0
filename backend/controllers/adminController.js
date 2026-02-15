@@ -363,8 +363,21 @@ const uploadSales = async (req, res, next) => {
                 for (const item of items) {
                     totalFaktur += parseNum(item.total_faktur);
                     diskon += parseNum(item.diskon);
-                    netSales += parseNum(item.net_sales);
-                    grossProfit += parseNum(item.gross_profit);
+
+                    const itemNetSales = parseNum(item.net_sales);
+                    netSales += itemNetSales;
+
+                    // Calculate GP per item: Net Sales - Harga Pokok
+                    // If Harga Pokok is present, use it. Otherwise fallback to existing gross_profit column.
+                    const hargaPokok = parseNum(item.harga_pokok);
+                    let itemGrossProfit = 0;
+
+                    if (hargaPokok > 0) {
+                        itemGrossProfit = itemNetSales - hargaPokok;
+                    } else {
+                        itemGrossProfit = parseNum(item.gross_profit);
+                    }
+                    grossProfit += itemGrossProfit;
                 }
 
                 // Calculate GP% based on totals
