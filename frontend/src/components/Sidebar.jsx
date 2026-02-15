@@ -29,6 +29,7 @@ const adminLinks = [
     { path: '/admin/inventory-analytics', label: 'Analitik Produk', icon: Layers },
     { path: '/admin/price-analytics', label: 'Analitik Harga', icon: Percent },
     { path: '/admin/reports', label: 'Laporan', icon: FileText },
+    { path: '/admin/settings', label: 'Pengaturan', icon: Settings },
 ];
 
 export default function Sidebar({ type = 'customer' }) {

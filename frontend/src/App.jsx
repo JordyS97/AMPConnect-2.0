@@ -30,6 +30,7 @@ import Reports from './pages/admin/Reports';
 import CustomerAnalytics from './pages/admin/CustomerAnalytics';
 import InventoryAnalytics from './pages/admin/InventoryAnalytics';
 import PricingAnalytics from './pages/admin/PricingAnalytics';
+import Settings from './pages/admin/Settings';
 
 import Sidebar from './components/Sidebar';
 
@@ -96,7 +97,9 @@ export default function App() {
                         <Route path="/admin/reports" element={<AdminRoute><Reports /></AdminRoute>} />
                         <Route path="/admin/customer-analytics" element={<AdminRoute><CustomerAnalytics /></AdminRoute>} />
                         <Route path="/admin/inventory-analytics" element={<AdminRoute><InventoryAnalytics /></AdminRoute>} />
+                        <Route path="/admin/inventory-analytics" element={<AdminRoute><InventoryAnalytics /></AdminRoute>} />
                         <Route path="/admin/price-analytics" element={<AdminRoute><PricingAnalytics /></AdminRoute>} />
+                        <Route path="/admin/settings" element={<AdminRoute><Settings /></AdminRoute>} />
 
                         {/* Catch all */}
                         <Route path="*" element={<Navigate to="/" />} />

@@ -1219,9 +1219,37 @@ const getPriceAnalytics = async (req, res, next) => {
     }
 };
 
+// Upload QRIS Image
+const uploadSettingsQR = async (req, res, next) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ success: false, message: 'File tidak ditemukan.' });
+        }
+
+        const tempPath = req.file.path;
+        const targetPath = path.join(__dirname, '../uploads/qris.jpg');
+
+        // Rename/Move file to qris.jpg to overwrite previous one
+        fs.rename(tempPath, targetPath, (err) => {
+            if (err) throw err;
+            res.json({ success: true, message: 'QRIS berhasil diperbarui.', url: '/uploads/qris.jpg' });
+        });
+
+        // Log
+        await pool.query(
+            `INSERT INTO activity_logs (user_type, user_id, user_name, action, description, ip_address) VALUES ($1, $2, $3, $4, $5, $6)`,
+            ['admin', req.user.id, req.user.username, 'Update QRIS', 'Memperbarui QR Code ASTRAPAY', req.ip]
+        );
+
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     getDashboard, getSales, getSaleDetail, getStock, adjustStock,
     uploadSales, uploadStock, getUploadHistory, downloadTemplate, generateReport,
-    getCustomerAnalytics, getInventoryAnalytics, getSalesAnalytics, getPriceAnalytics
+    getCustomerAnalytics, getInventoryAnalytics, getSalesAnalytics, getPriceAnalytics,
+    uploadSettingsQR
 };
 

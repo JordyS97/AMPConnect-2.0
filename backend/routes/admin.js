@@ -86,4 +86,23 @@ router.get('/sales-analytics', getSalesAnalytics);
 // Price & Discount Analytics
 router.get('/price-analytics', getPriceAnalytics);
 
+// Price & Discount Analytics
+router.get('/price-analytics', getPriceAnalytics);
+
+// Settings
+const storageQR = multer.diskStorage({
+    destination: (req, file, cb) => cb(null, path.join(__dirname, '../uploads')),
+    filename: (req, file, cb) => cb(null, `temp-qris-${Date.now()}.jpg`), // Temp name, controller will rename
+});
+const uploadQR = multer({
+    storage: storageQR,
+    fileFilter: (req, file, cb) => {
+        if (file.mimetype.startsWith('image/')) cb(null, true);
+        else cb(new Error('Hanya file gambar yang diizinkan.'), false);
+    },
+    limits: { fileSize: 2 * 1024 * 1024 } // 2MB
+});
+
+router.post('/settings/qr', uploadLimiter, uploadQR.single('file'), require('../controllers/adminController').uploadSettingsQR);
+
 module.exports = router;
