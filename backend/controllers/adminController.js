@@ -1121,13 +1121,13 @@ const getPriceAnalytics = async (req, res, next) => {
         // Calculated from Price * Qty - Subtotal to capture item-level discounts even if diskon column is 0
         const topPartsQuery = `
             SELECT ti.no_part, ti.nama_part, 
-                   SUM(ti.diskon) as total_discount, 
+                   SUM(ABS(ti.diskon)) as total_discount, 
                    SUM(ti.subtotal) as total_revenue,
-                   CASE WHEN SUM(ti.subtotal + ti.diskon) > 0 THEN 
-                        (SUM(ti.diskon) / SUM(ti.subtotal + ti.diskon)) * 100 
+                   CASE WHEN SUM(ti.subtotal + ABS(ti.diskon)) > 0 THEN 
+                        (SUM(ABS(ti.diskon)) / SUM(ti.subtotal + ABS(ti.diskon))) * 100 
                    ELSE 0 END as discount_percent
             FROM transaction_items ti
-            WHERE ti.diskon > 0
+            WHERE ABS(ti.diskon) > 0
             GROUP BY ti.no_part, ti.nama_part
             ORDER BY total_discount DESC LIMIT 10
         `;
