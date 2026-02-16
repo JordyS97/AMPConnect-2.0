@@ -79,8 +79,10 @@ export default function AdminDashboard() {
         datasets: [{
             data: [monthlyComparison.last_month, monthlyComparison.this_month],
             backgroundColor: ['#e2e8f0', '#2563eb'],
+            barPercentage: 0.8,
+            categoryPercentage: 0.9,
             borderRadius: 8,
-            barThickness: 50
+            barThickness: 60
         }]
     };
 
