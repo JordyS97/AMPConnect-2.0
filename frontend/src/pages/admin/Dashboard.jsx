@@ -4,7 +4,7 @@ import { useToast } from '../../components/Toast';
 import { DollarSign, ShoppingCart, TrendingUp, Percent, AlertTriangle, PackageX, UserPlus, Upload as UploadIcon } from 'lucide-react';
 import { formatCurrency, formatNumber, formatPercent } from '../../utils/formatters';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Title, Tooltip, Legend, Filler } from 'chart.js';
-import { Line, Pie, Bar } from 'react-chartjs-2';
+import { Line, Pie, Bar, Doughnut } from 'react-chartjs-2';
 import api from '../../api/axios';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Title, Tooltip, Legend, Filler);
@@ -91,8 +91,35 @@ export default function AdminDashboard() {
                     <div style={{ height: 280 }}><Line data={lineData} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }} /></div>
                 </div>
                 <div className="chart-card"><h3>🥧 Penjualan per Kategori</h3>
-                    <div style={{ height: 280, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <Pie data={pieData} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { font: { size: 11 } } } } }} />
+                    <div style={{ height: 280, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                        <Doughnut
+                            data={pieData}
+                            options={{
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                cutout: '60%',
+                                plugins: {
+                                    legend: {
+                                        position: 'right',
+                                        labels: { boxWidth: 10, font: { size: 10 } }
+                                    }
+                                }
+                            }}
+                        />
+                        {/* Center Text */}
+                        <div style={{
+                            position: 'absolute',
+                            top: '50%',
+                            left: '35%',
+                            transform: 'translate(-50%, -50%)',
+                            textAlign: 'center',
+                            pointerEvents: 'none'
+                        }}>
+                            <div style={{ fontSize: '0.7rem', color: '#64748b' }}>Total</div>
+                            <div style={{ fontSize: '0.9rem', fontWeight: 'bold', color: '#334155' }}>
+                                {formatNumber(salesByGroup.reduce((a, b) => a + Number(b.total), 0) / 1000000)}M+
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div className="chart-card"><h3>📊 Top 10 Part Terlaris</h3>
