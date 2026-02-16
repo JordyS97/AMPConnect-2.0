@@ -186,12 +186,12 @@ const getDashboard = async (req, res, next) => {
 
         // Top 10 best selling parts (revenue) (current month)
         const topParts = await pool.query(
-            `SELECT ti.nama_part, SUM(ti.subtotal) as total_value
+            `SELECT ti.no_part, ti.nama_part, SUM(ti.subtotal) as total_value
        FROM transaction_items ti
        JOIN transactions t ON ti.transaction_id = t.id
        WHERE EXTRACT(MONTH FROM t.tanggal) = EXTRACT(MONTH FROM NOW())
        AND EXTRACT(YEAR FROM t.tanggal) = EXTRACT(YEAR FROM NOW())
-       GROUP BY ti.nama_part ORDER BY total_value DESC LIMIT 10`
+       GROUP BY ti.no_part, ti.nama_part ORDER BY total_value DESC LIMIT 10`
         );
 
         // Monthly comparison (this month vs last month)
