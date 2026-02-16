@@ -2,7 +2,10 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/Toast';
 import TierBadge from '../../components/TierBadge';
-import { Star, ChevronDown, ChevronUp, Award } from 'lucide-react';
+import {
+    Star, ChevronDown, ChevronUp, Award, TrendingUp
+} from 'lucide-react';
+import { Line } from 'react-chartjs-2'; // Import Chart.js
 import { formatCurrency, formatDate, formatNumber } from '../../utils/formatters';
 import api from '../../api/axios';
 
@@ -14,13 +17,17 @@ const tierBenefits = {
 
 export default function Points() {
     const [data, setData] = useState(null);
+    const [trendData, setTrendData] = useState(null); // New state for trend chart
     const [loading, setLoading] = useState(true);
     const [showBenefits, setShowBenefits] = useState(false);
     const [page, setPage] = useState(1);
     const { user } = useAuth();
     const { addToast } = useToast();
 
-    useEffect(() => { fetchPoints(); }, [page]);
+    useEffect(() => {
+        fetchPoints();
+        fetchTrend(); // Fetch trend data in parallel
+    }, [page]);
 
     const fetchPoints = async () => {
         try {
@@ -33,7 +40,18 @@ export default function Points() {
         }
     };
 
-    if (loading) return <div className="loading-spinner"><div className="spinner"></div></div>;
+    // New function to fetch chart data
+    const fetchTrend = async () => {
+        try {
+            // Re-using the trends API which now includes monthlyPoints
+            const res = await api.get('/customer/trends');
+            setTrendData(res.data.data.monthlyPoints);
+        } catch (err) {
+            console.error("Failed to load points trend", err);
+        }
+    };
+
+    if (loading && !data) return <div className="loading-spinner"><div className="spinner"></div></div>;
 
     const tiers = [
         { name: 'Silver', min: 0, max: 499, color: '#C0C0C0', icon: '⭐' },
@@ -41,8 +59,34 @@ export default function Points() {
         { name: 'Diamond', min: 1500, max: '∞', color: '#B9F2FF', icon: '💎' },
     ];
 
+    // Chart Data Preparation
+    const chartData = {
+        labels: trendData ? trendData.map(d => {
+            const date = new Date(d.month + '-01');
+            return date.toLocaleDateString('id-ID', { month: 'short', year: '2-digit' });
+        }) : [],
+        datasets: [{
+            label: 'Poin Diperoleh',
+            data: trendData ? trendData.map(d => d.total) : [],
+            borderColor: '#f59e0b',
+            backgroundColor: (context) => {
+                const ctx = context.chart.ctx;
+                const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+                gradient.addColorStop(0, 'rgba(245, 158, 11, 0.5)');
+                gradient.addColorStop(1, 'rgba(245, 158, 11, 0)');
+                return gradient;
+            },
+            fill: true,
+            tension: 0.4,
+            pointRadius: 4,
+            pointBackgroundColor: '#ffffff',
+            pointBorderColor: '#f59e0b',
+            pointBorderWidth: 2
+        }]
+    };
+
     return (
-        <div>
+        <div className="fade-in">
             <div className="page-header">
                 <h1>Poin Reward</h1>
                 <p>Kelola poin dan tingkat keanggotaan Anda</p>
@@ -78,6 +122,47 @@ export default function Points() {
                     </div>
                 )}
             </div>
+
+            {/* Points Trend Chart - NEW SECTION */}
+            {trendData && trendData.length > 0 && (
+                <div className="card" style={{ marginBottom: 24 }}>
+                    <div className="card-header">
+                        <h3>Tren Perolehan Poin (12 Bulan Terakhir)</h3>
+                        <TrendingUp size={20} color="#f59e0b" />
+                    </div>
+                    <div style={{ height: 250 }}>
+                        <Line
+                            data={chartData}
+                            options={{
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: {
+                                    legend: { display: false },
+                                    tooltip: {
+                                        mode: 'index',
+                                        intersect: false,
+                                        callbacks: {
+                                            label: function (context) {
+                                                let label = context.dataset.label || '';
+                                                if (label) label += ': ';
+                                                if (context.parsed.y !== null) label += context.parsed.y + ' Poin';
+                                                return label;
+                                            }
+                                        }
+                                    }
+                                },
+                                scales: {
+                                    y: {
+                                        beginAtZero: true,
+                                        grid: { color: '#f1f5f9' }
+                                    },
+                                    x: { grid: { display: false } }
+                                }
+                            }}
+                        />
+                    </div>
+                </div>
+            )}
 
             {/* History Table */}
             <div className="card" style={{ marginBottom: 24 }}>

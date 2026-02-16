@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Line, Doughnut } from 'react-chartjs-2';
 import {
-Calendar, Filter, TrendingUp, TrendingDown,
-AlertCircle, DollarSign, Activity, PieChart,
-ArrowRight, ShoppingBag
+    Calendar, Filter, TrendingUp, TrendingDown,
+    AlertCircle, DollarSign, Activity, PieChart,
+    ArrowRight, ShoppingBag
 }
     from 'lucide-react';
 import { formatCurrency, formatNumber } from '../../utils/formatters';
@@ -110,17 +110,21 @@ export default function SpendingAnalytics() {
                     <div className="filter-bar" style={{ display: 'flex', gap: 12, alignItems: 'center', background: '#ffffff', padding: 8, borderRadius: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.05)', border: '1px solid #f1f5f9' }}>
                         <div className="filter-group" style={{ display: 'flex', alignItems: 'center', gap: 8, borderRight: '1px solid #f1f5f9', paddingRight: 12 }}>
                             <Calendar size={16} color="#64748b" />
-                            <select
-                                value={filters.startDate} // Simplified for now (could be range picker)
-                                onChange={(e) => {
-                                    // Logic for quick ranges could go here
-                                    // For now just manual inputs or presets
-                                }}
-                                style={{ border: 'none', fontSize: '0.9rem', color: '#334155', background: 'transparent', cursor: 'pointer' }}
-                            >
-                                <option value="">Semua Waktu</option>
-                                {/* Add logic for "Last 3 Months" etc if needed, acting as triggers */}
-                            </select>
+                            <input
+                                type="date"
+                                value={filters.startDate}
+                                onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
+                                style={{ border: 'none', fontSize: '0.9rem', color: '#334155', background: 'transparent', cursor: 'pointer', fontFamily: 'inherit' }}
+                                placeholder="Mulai"
+                            />
+                            <span style={{ color: '#cbd5e1' }}>-</span>
+                            <input
+                                type="date"
+                                value={filters.endDate}
+                                onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
+                                style={{ border: 'none', fontSize: '0.9rem', color: '#334155', background: 'transparent', cursor: 'pointer', fontFamily: 'inherit' }}
+                                placeholder="Selesai"
+                            />
                         </div>
 
                         <div className="filter-group" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

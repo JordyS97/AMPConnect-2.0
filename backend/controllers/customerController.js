@@ -326,9 +326,12 @@ const getTrends = async (req, res, next) => {
 
         let catFilterItem = '';
         let catJoin = '';
+        // Capture pIdx for category BEFORE it might be incremented for other things
+        const catParamIdx = pIdx;
+
         if (category && category !== 'Semua') {
             catJoin = 'JOIN transaction_items ti2 ON t.id = ti2.transaction_id JOIN parts p2 ON ti2.no_part = p2.no_part';
-            catFilterItem = ` AND p2.group_tobpm = $${pIdx}`;
+            catFilterItem = ` AND p2.group_tobpm = $${catParamIdx}`;
             params.push(category);
             pIdx++;
         }
@@ -407,15 +410,14 @@ const getTrends = async (req, res, next) => {
         const momGrowth = lastMonthTotal > 0 ? ((thisMonthTotal - lastMonthTotal) / lastMonthTotal) * 100 : 0;
 
         // 6. Top Parts (Expanded with Unit Price)
-        const topParts = await pool.query(
-            `SELECT ti.nama_part, ti.no_part, SUM(ti.qty) as total_qty, SUM(ti.subtotal) as total_value
+        const topPartsQuery = `SELECT ti.nama_part, ti.no_part, SUM(ti.qty) as total_qty, SUM(ti.subtotal) as total_value
        FROM transaction_items ti
        JOIN transactions t ON ti.transaction_id = t.id
        ${category && category !== 'Semua' ? 'JOIN parts p ON ti.no_part = p.no_part' : ''}
-       WHERE t.customer_id = $1 ${dateFilter} ${category && category !== 'Semua' ? 'AND p.group_tobpm = $' + pIdx : ''}
-       GROUP BY ti.nama_part, ti.no_part ORDER BY total_value DESC LIMIT 10`,
-            params
-        );
+       WHERE t.customer_id = $1 ${dateFilter} ${category && category !== 'Semua' ? 'AND p.group_tobpm = $' + catParamIdx : ''}
+       GROUP BY ti.nama_part, ti.no_part ORDER BY total_value DESC LIMIT 10`;
+
+        const topParts = await pool.query(topPartsQuery, params);
 
         // 7. Spending by Category
         const spendingByGroup = await pool.query(
@@ -426,6 +428,22 @@ const getTrends = async (req, res, next) => {
        WHERE t.customer_id = $1 ${dateFilter}
        GROUP BY p.group_tobpm ORDER BY total DESC`,
             params
+        );
+
+        // RESTORED: Monthly Points Trend
+        const monthlyPoints = await pool.query(
+            `SELECT TO_CHAR(tanggal, 'YYYY-MM') as month, SUM(points_earned) as total
+       FROM transactions WHERE customer_id = $1 AND tanggal >= NOW() - INTERVAL '12 months'
+       GROUP BY TO_CHAR(tanggal, 'YYYY-MM') ORDER BY month`,
+            [customerId]
+        );
+
+        // RESTORED: Purchase Frequency
+        const purchaseFrequency = await pool.query(
+            `SELECT TO_CHAR(tanggal, 'YYYY-MM') as month, COUNT(*) as count
+       FROM transactions WHERE customer_id = $1 AND tanggal >= NOW() - INTERVAL '12 months'
+       GROUP BY TO_CHAR(tanggal, 'YYYY-MM') ORDER BY month`,
+            [customerId]
         );
 
         // 8. Generate Smart Insights
@@ -457,6 +475,8 @@ const getTrends = async (req, res, next) => {
                     total_value: parseFloat(p.total_value),
                     unit_price: p.total_qty > 0 ? parseFloat(p.total_value) / parseInt(p.total_qty) : 0
                 })),
+                monthlyPoints: monthlyPoints.rows,
+                purchaseFrequency: purchaseFrequency.rows
             }
         });
     } catch (error) {
