@@ -998,16 +998,21 @@ const getSalesAnalytics = async (req, res, next) => {
 
         const growthQuery = `
             SELECT 
+                -- Current Month (for MoM)
                 SUM(CASE WHEN EXTRACT(MONTH FROM tanggal) = $1 AND EXTRACT(YEAR FROM tanggal) = $2 THEN net_sales ELSE 0 END) as current_month_sales,
+                -- Last Month (for MoM)
                 SUM(CASE WHEN EXTRACT(MONTH FROM tanggal) = $3 AND EXTRACT(YEAR FROM tanggal) = $4 THEN net_sales ELSE 0 END) as last_month_sales,
-                SUM(CASE WHEN EXTRACT(MONTH FROM tanggal) = $1 AND EXTRACT(YEAR FROM tanggal) = $5 THEN net_sales ELSE 0 END) as last_year_sales
+                -- YTD Current Year (Jan to Current Month) (for YoY)
+                SUM(CASE WHEN EXTRACT(YEAR FROM tanggal) = $2 AND EXTRACT(MONTH FROM tanggal) <= $1 THEN net_sales ELSE 0 END) as current_ytd_sales,
+                -- YTD Last Year (Jan to Current Month) (for YoY)
+                SUM(CASE WHEN EXTRACT(YEAR FROM tanggal) = $5 AND EXTRACT(MONTH FROM tanggal) <= $1 THEN net_sales ELSE 0 END) as last_year_ytd_sales
             FROM transactions
         `;
         const growth = await pool.query(growthQuery, [currentMonth, currentYear, lastMonth, lastMonthYear, lastYear]);
-        const { current_month_sales, last_month_sales, last_year_sales } = growth.rows[0];
+        const { current_month_sales, last_month_sales, current_ytd_sales, last_year_ytd_sales } = growth.rows[0];
 
         const momGrowth = last_month_sales > 0 ? ((current_month_sales - last_month_sales) / last_month_sales) * 100 : 0;
-        const yoyGrowth = last_year_sales > 0 ? ((current_month_sales - last_year_sales) / last_year_sales) * 100 : 0;
+        const yoyGrowth = last_year_ytd_sales > 0 ? ((current_ytd_sales - last_year_ytd_sales) / last_year_ytd_sales) * 100 : 0;
 
         // 5. Transaction Type Analysis
         const byType = await pool.query(`
