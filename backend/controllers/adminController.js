@@ -172,8 +172,10 @@ const getDashboard = async (req, res, next) => {
         );
 
         // Sales by group TOBPM (current month)
+        // Using Net Sales (Subtotal - Discount)
         const salesByGroup = await pool.query(
-            `SELECT COALESCE(p.group_tobpm, 'Lainnya') as group_name, SUM(ti.subtotal) as total
+            `SELECT COALESCE(p.group_tobpm, 'Lainnya') as group_name, 
+                    SUM(ti.subtotal - COALESCE(ti.diskon, 0)) as total
        FROM transaction_items ti
        JOIN transactions t ON ti.transaction_id = t.id
        LEFT JOIN parts p ON ti.no_part = p.no_part

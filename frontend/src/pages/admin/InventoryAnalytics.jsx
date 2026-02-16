@@ -200,10 +200,89 @@ export default function InventoryAnalytics() {
             </div>
 
             {/* Bottom Section (Cross-Sell / Alerts) - Optional in this view but kept for completeness */}
-            <div style={{ marginTop: 32, opacity: 0.8 }}>
+            {/* Bottom Section (Cross-Sell / Alerts) */}
+            <div style={{ marginTop: 32, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 32 }}>
+                {/* Cross Selling Opportunities */}
                 <div className="glass-card">
-                    <h3 style={{ marginBottom: 16 }}>Additional Insights</h3>
-                    <p style={{ color: '#64748b' }}>Scroll down to view cross-selling opportunities and low performing alerts.</p>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+                        <div style={{ background: '#f0fdf4', padding: 8, borderRadius: 10 }}><LinkIcon size={20} color="#16a34a" /></div>
+                        <div>
+                            <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0 }}>Cross-Selling Insights</h3>
+                            <p style={{ fontSize: '0.85rem', color: '#64748b' }}>Frequently bought together items</p>
+                        </div>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                        {cross_sell.length > 0 ? (
+                            cross_sell.slice(0, 5).map((item, i) => (
+                                <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px', background: '#f8fafc', borderRadius: 12 }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                        <div style={{ fontSize: '0.9rem', fontWeight: 600, color: '#1e293b' }}>{item.name_a}</div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#94a3b8', fontSize: '0.8rem' }}>
+                                            <span>+</span>
+                                            <span>{item.name_b}</span>
+                                        </div>
+                                    </div>
+                                    <div style={{ textAlign: 'right' }}>
+                                        <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#16a34a' }}>{item.frequency}x</div>
+                                        <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Orders</div>
+                                    </div>
+                                </div>
+                            ))
+                        ) : (
+                            <div style={{ textAlign: 'center', padding: 20, color: '#94a3b8' }}>
+                                No cross-selling patterns detected yet.
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Low Performing Alerts (Detailed) */}
+                <div className="glass-card">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+                        <div style={{ background: '#fef2f2', padding: 8, borderRadius: 10 }}><AlertCircle size={20} color="#dc2626" /></div>
+                        <div>
+                            <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0 }}>Inventory Alerts</h3>
+                            <p style={{ fontSize: '0.85rem', color: '#64748b' }}>Items requiring attention</p>
+                        </div>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxHeight: 400, overflowY: 'auto' }}>
+                        {health.dead_stock.length > 0 ? (
+                            health.dead_stock.slice(0, 5).map((item, i) => (
+                                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', border: '1px solid #fee2e2', borderRadius: 12, background: '#fef2f2' }}>
+                                    <div>
+                                        <div style={{ fontSize: '0.9rem', fontWeight: 600, color: '#991b1b' }}>{item.nama_part}</div>
+                                        <div style={{ fontSize: '0.8rem', color: '#b91c1c' }}>Dead Stock (&gt;90 days)</div>
+                                    </div>
+                                    <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#991b1b' }}>
+                                        {item.qty} Qty
+                                    </div>
+                                </div>
+                            ))
+                        ) : health.slow_moving.length > 0 ? (
+                            health.slow_moving.slice(0, 5).map((item, i) => (
+                                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', border: '1px solid #ffedd5', borderRadius: 12, background: '#fff7ed' }}>
+                                    <div>
+                                        <div style={{ fontSize: '0.9rem', fontWeight: 600, color: '#9a3412' }}>{item.nama_part}</div>
+                                        <div style={{ fontSize: '0.8rem', color: '#c2410c' }}>Slow Moving (&gt;60 days)</div>
+                                    </div>
+                                    <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#9a3412' }}>
+                                        {item.qty} Qty
+                                    </div>
+                                </div>
+                            ))
+                        ) : (
+                            <div style={{ textAlign: 'center', padding: 20, color: '#94a3b8' }}>
+                                Inventory health is excellent!
+                            </div>
+                        )}
+                        {health.dead_stock.length > 5 && (
+                            <div style={{ textAlign: 'center', fontSize: '0.85rem', color: '#64748b', marginTop: 8 }}>
+                                +{health.dead_stock.length - 5} more dead stock items
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>

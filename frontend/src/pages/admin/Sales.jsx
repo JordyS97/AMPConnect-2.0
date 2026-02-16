@@ -269,8 +269,8 @@ export default function Sales() {
                                                             <td>{formatCurrency(tx.total_faktur)}</td>
                                                             <td>{formatCurrency(tx.net_sales)}</td>
                                                             <td>{formatCurrency(tx.gross_profit)}</td>
-                                                            <td style={{ color: tx.gp_percentage > 20 ? 'var(--success)' : tx.gp_percentage > 10 ? 'var(--warning)' : 'var(--danger)' }}>
-                                                                {formatPercent(tx.gp_percentage)}
+                                                            <td style={{ color: tx.gp_percent > 20 ? 'var(--success)' : tx.gp_percent > 10 ? 'var(--warning)' : 'var(--danger)' }}>
+                                                                {formatPercent(tx.gp_percent)}
                                                             </td>
                                                             <td><button onClick={() => viewDetail(tx.id)} className="btn btn-ghost btn-sm"><Eye size={16} /></button></td>
                                                         </tr>

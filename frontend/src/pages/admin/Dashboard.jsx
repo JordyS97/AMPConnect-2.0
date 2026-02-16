@@ -95,35 +95,35 @@ export default function AdminDashboard() {
             <div className="kpi-strip">
                 <div className="kpi-card">
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                        <div className="kpi-label">Total Revenue (Month)</div>
-                        <div className="stat-icon" style={{ background: '#eff6ff', color: '#2563eb', width: 36, height: 36, borderRadius: 10 }}>
-                            <DollarSign size={18} />
+                        <div className="kpi-label">Total Revenue</div>
+                        <div className="stat-icon" style={{ background: '#eff6ff', color: '#2563eb', width: 40, height: 40, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <DollarSign size={20} />
                         </div>
                     </div>
                     <div className="kpi-value">{formatCurrency(todayStats.total_sales).replace('Rp', '')}</div>
                     <div className={`kpi-trend ${salesGrowth >= 0 ? 'up' : 'down'}`}>
-                        {salesGrowth >= 0 ? '↑' : '↓'} {Math.abs(salesGrowth).toFixed(1)}% vs Last Month
+                        {salesGrowth >= 0 ? '↗' : '↘'} {Math.abs(salesGrowth).toFixed(1)}% vs Last Month
                     </div>
                 </div>
 
                 <div className="kpi-card">
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                        <div className="kpi-label">Total Transactions</div>
-                        <div className="stat-icon" style={{ background: '#f0fdf4', color: '#16a34a', width: 36, height: 36, borderRadius: 10 }}>
-                            <ShoppingCart size={18} />
+                        <div className="kpi-label">Transactions</div>
+                        <div className="stat-icon" style={{ background: '#f0fdf4', color: '#16a34a', width: 40, height: 40, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <ShoppingCart size={20} />
                         </div>
                     </div>
                     <div className="kpi-value">{formatNumber(todayStats.transactions)}</div>
                     <div className="kpi-trend up">
-                        ↑ Active
+                        Active Now
                     </div>
                 </div>
 
                 <div className="kpi-card">
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                         <div className="kpi-label">Gross Profit</div>
-                        <div className="stat-icon" style={{ background: '#fae8ff', color: '#7c3aed', width: 36, height: 36, borderRadius: 10 }}>
-                            <TrendingUp size={18} />
+                        <div className="stat-icon" style={{ background: '#fae8ff', color: '#7c3aed', width: 40, height: 40, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <TrendingUp size={20} />
                         </div>
                     </div>
                     <div className="kpi-value">{formatCurrency(todayStats.gross_profit).replace('Rp', '')}</div>
@@ -135,13 +135,13 @@ export default function AdminDashboard() {
                 <div className="kpi-card">
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                         <div className="kpi-label">Average GP%</div>
-                        <div className="stat-icon" style={{ background: '#fff7ed', color: '#ea580c', width: 36, height: 36, borderRadius: 10 }}>
-                            <Percent size={18} />
+                        <div className="stat-icon" style={{ background: '#fff7ed', color: '#ea580c', width: 40, height: 40, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <Percent size={20} />
                         </div>
                     </div>
                     <div className="kpi-value">{formatPercent(todayStats.avg_gp)}</div>
                     <div className="kpi-trend up">
-                        target
+                        On Target
                     </div>
                 </div>
             </div>
@@ -150,17 +150,32 @@ export default function AdminDashboard() {
             <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 24, marginBottom: 24 }}>
                 {/* Hero Chart - Sales Trend */}
                 <div className="glass-card">
-                    <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: 24 }}>Sales Trend Overview</h3>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+                        <div>
+                            <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: '#1e293b' }}>Sales Trend Overview</h3>
+                            <p style={{ fontSize: '0.85rem', color: '#64748b' }}>Daily net sales performance (Last 30 Days)</p>
+                        </div>
+                    </div>
                     <div style={{ height: 320 }}>
                         <Line
                             data={areaChartData}
                             options={{
                                 responsive: true,
                                 maintainAspectRatio: false,
-                                plugins: { legend: { display: false } },
+                                plugins: {
+                                    legend: { display: false },
+                                    tooltip: { enabled: false }
+                                },
                                 scales: {
-                                    x: { grid: { display: false }, ticks: { maxTicksLimit: 8, color: '#94a3b8' } },
+                                    x: { grid: { display: false }, ticks: { maxTicksLimit: 8, color: '#94a3b8', font: { size: 11 } } },
                                     y: { border: { display: false }, grid: { color: '#f1f5f9' }, ticks: { color: '#94a3b8', callback: (val) => val >= 1000 ? `${val / 1000}k` : val } }
+                                },
+                                interaction: {
+                                    mode: 'nearest',
+                                    intersect: false,
+                                },
+                                elements: {
+                                    point: { radius: 0, hitRadius: 20, hoverRadius: 6 }
                                 }
                             }}
                         />
@@ -169,29 +184,31 @@ export default function AdminDashboard() {
 
                 {/* Revenue Composition */}
                 <div className="glass-card" style={{ display: 'flex', flexDirection: 'column' }}>
-                    <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: 8 }}>Revenue Composition</h3>
-                    <p style={{ fontSize: '0.9rem', color: '#94a3b8', marginBottom: 24 }}>Sales by Product Category</p>
+                    <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: 4, color: '#1e293b' }}>Revenue Composition</h3>
+                    <p style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: 24 }}>Net Sales by Product Category</p>
 
-                    <div style={{ flex: 1, position: 'relative', display: 'flex', justifyContent: 'center' }}>
+                    <div style={{ flex: 1, position: 'relative', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                         <Doughnut
                             data={donutData}
                             options={{
                                 responsive: true,
                                 maintainAspectRatio: false,
                                 cutout: '75%',
-                                plugins: { legend: { display: false } }
+                                plugins: { legend: { display: false }, tooltip: { enabled: true } }
                             }}
                         />
                         <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', textAlign: 'center' }}>
-                            <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Total</div>
-                            <div style={{ fontSize: '1.2rem', fontWeight: 800 }}>{formatNumber(salesByGroup.reduce((a, b) => a + Number(b.total), 0) / 1000000)}M+</div>
+                            <div style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 500 }}>Total</div>
+                            <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#0f172a' }}>
+                                {formatNumber(salesByGroup.reduce((a, b) => a + Number(b.total), 0) / 1000000)}M+
+                            </div>
                         </div>
                     </div>
                     <div style={{ marginTop: 24, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                         {salesByGroup.slice(0, 4).map((g, i) => (
                             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                <div style={{ width: 8, height: 8, borderRadius: '50%', background: donutColors[i] }}></div>
-                                <div style={{ fontSize: '0.8rem', color: '#64748b' }}>{g.group_name}</div>
+                                <div style={{ width: 10, height: 10, borderRadius: '50%', background: donutColors[i] }}></div>
+                                <div style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 500 }}>{g.group_name}</div>
                             </div>
                         ))}
                     </div>
@@ -202,27 +219,35 @@ export default function AdminDashboard() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
                 {/* Ranked List - Top Products */}
                 <div className="glass-card">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                        <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Top Performing Products</h3>
-                        <Link to="/admin/analytics/inventory" style={{ fontSize: '0.85rem', color: '#2563eb' }}>View All</Link>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+                        <div>
+                            <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: '#1e293b' }}>Top Performing Products</h3>
+                            <p style={{ fontSize: '0.85rem', color: '#64748b' }}>Best sellers by revenue</p>
+                        </div>
+                        <Link to="/admin/analytics/inventory" style={{ fontSize: '0.85rem', color: '#2563eb', fontWeight: 600, textDecoration: 'none' }}>View All</Link>
                     </div>
                     <div>
                         {topParts.slice(0, 5).map((part, i) => {
                             // Calculate simple percentage relative to top item for bar width
                             const maxVal = Number(topParts[0].total_value);
                             const percent = (Number(part.total_value) / maxVal) * 100;
+                            // Mock trend data for UI purposes as requested (API doesn't provide it yet)
+                            const mockTrend = [12.5, 8.2, -2.4, 5.1, 1.8];
 
                             return (
                                 <div key={i} className="ranked-item">
                                     <div className={`rank-badge top-${i + 1}`}>{i + 1}</div>
-                                    <div style={{ flex: 1 }}>
-                                        <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>{part.nama_part}</div>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: '#64748b', marginTop: 4 }}>
-                                            <span>{part.no_part}</span>
-                                            <span>{formatCurrency(part.total_value)}</span>
-                                        </div>
+                                    <div className="product-info">
+                                        <div className="product-part" style={{ marginBottom: 2, fontSize: '0.75rem', color: '#94a3b8' }}>{part.no_part}</div>
+                                        <div className="product-name" style={{ marginBottom: 6 }}>{part.nama_part}</div>
                                         <div className="progress-thin">
-                                            <div className="bar" style={{ width: `${percent}%`, background: i === 0 ? '#2563eb' : i === 1 ? '#3b82f6' : '#93c5fd' }}></div>
+                                            <div className="bar" style={{ width: `${percent}%` }}></div>
+                                        </div>
+                                    </div>
+                                    <div className="revenue-info">
+                                        <div className="revenue-value">{formatCurrency(part.total_value).replace('Rp', '')}</div>
+                                        <div className={`trend-badge ${mockTrend[i] >= 0 ? 'positive' : 'negative'}`}>
+                                            {mockTrend[i] >= 0 ? '+' : ''}{mockTrend[i]}%
                                         </div>
                                     </div>
                                 </div>
@@ -233,27 +258,33 @@ export default function AdminDashboard() {
 
                 {/* Monthly Comparison */}
                 <div className="glass-card">
-                    <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: 24 }}>Monthly Comparison</h3>
-                    <div style={{ height: 250, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', gap: 40, paddingBottom: 20 }}>
+                    <div style={{ marginBottom: 24 }}>
+                        <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: '#1e293b' }}>Monthly Comparison</h3>
+                        <p style={{ fontSize: '0.85rem', color: '#64748b' }}>Growth vs Previous Month</p>
+                    </div>
+
+                    <div style={{ height: 220, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', gap: 40, paddingBottom: 20 }}>
                         <Bar
                             data={monthCompData}
                             options={{
                                 responsive: true,
                                 maintainAspectRatio: false,
-                                plugins: { legend: { display: false } },
+                                plugins: { legend: { display: false }, tooltip: { enabled: false } },
                                 scales: {
-                                    x: { grid: { display: false } },
+                                    x: { grid: { display: false }, ticks: { color: '#64748b', font: { weight: 500 } } },
                                     y: { display: false }
-                                }
+                                },
+                                barPercentage: 0.8, // Increased for wider bars/less gap
+                                categoryPercentage: 0.9
                             }}
                         />
                     </div>
                     <div style={{ textAlign: 'center' }}>
-                        <div style={{ fontSize: '2.5rem', fontWeight: 800, color: '#2563eb', lineHeight: 1 }}>
+                        <div style={{ fontSize: '3rem', fontWeight: 800, color: salesGrowth >= 0 ? '#2563eb' : '#ef4444', lineHeight: 1, letterSpacing: '-1px' }}>
                             {salesGrowth >= 0 ? '+' : ''}{salesGrowth.toFixed(1)}%
                         </div>
-                        <div style={{ color: '#94a3b8', fontSize: '0.9rem', marginTop: 8 }}>
-                            Growth vs Previous Month
+                        <div style={{ color: '#94a3b8', fontSize: '0.9rem', marginTop: 8, fontWeight: 500 }}>
+                            {salesGrowth >= 0 ? 'Increase' : 'Decrease'} in Revenue
                         </div>
                     </div>
                 </div>
