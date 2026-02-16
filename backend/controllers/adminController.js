@@ -1111,13 +1111,16 @@ const getPriceAnalytics = async (req, res, next) => {
         } catch (e) { /* ignore if exists/error */ }
 
         // Shows Rank, Part No, Part Name, Discount % (Total Discount / Total Sales Revenue)
+        // Calculated from Price * Qty - Subtotal to capture item-level discounts even if diskon column is 0
         const topPartsQuery = `
             SELECT ti.no_part, ti.nama_part, 
-                   SUM(ti.diskon) as total_discount, 
+                   SUM((ti.price * ti.qty) - ti.subtotal) as total_discount, 
                    SUM(ti.subtotal) as total_revenue,
-                   CASE WHEN SUM(ti.subtotal) > 0 THEN (SUM(ti.diskon) / SUM(ti.subtotal)) * 100 ELSE 0 END as discount_percent
+                   CASE WHEN SUM(ti.price * ti.qty) > 0 THEN 
+                        ((SUM((ti.price * ti.qty) - ti.subtotal)) / SUM(ti.price * ti.qty)) * 100 
+                   ELSE 0 END as discount_percent
             FROM transaction_items ti
-            WHERE ti.diskon > 0
+            WHERE (ti.price * ti.qty) > ti.subtotal
             GROUP BY ti.no_part, ti.nama_part
             ORDER BY total_discount DESC LIMIT 10
         `;

@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Bar, Pie } from 'react-chartjs-2';
+import { Bar, Pie, Doughnut } from 'react-chartjs-2';
+import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement } from 'chart.js';
 import { Package, TrendingUp, TrendingDown, AlertCircle, Layers, Link as LinkIcon } from 'lucide-react';
+
+ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement);
 import { formatCurrency, formatNumber, formatPercent } from '../../utils/formatters';
 import { useToast } from '../../components/Toast';
 import api from '../../api/axios';
@@ -106,8 +109,54 @@ export default function InventoryAnalytics() {
                 {/* Category Analysis */}
                 <div className="card">
                     <h3>🥧 Revenue per Kategori</h3>
-                    <div style={{ height: 250, display: 'flex', justifyContent: 'center' }}>
-                        <Pie data={categoryChartData} options={{ responsive: true, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } } } }} />
+                    <div style={{ height: 300, display: 'flex', justifyContent: 'center', position: 'relative' }}>
+                        <Doughnut
+                            data={categoryChartData}
+                            options={{
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                cutout: '65%',
+                                plugins: {
+                                    legend: {
+                                        position: 'right',
+                                        labels: {
+                                            usePointStyle: true,
+                                            boxWidth: 8,
+                                            font: { size: 11 },
+                                            padding: 15
+                                        }
+                                    },
+                                    tooltip: {
+                                        callbacks: {
+                                            label: function (context) {
+                                                let label = context.label || '';
+                                                if (label) {
+                                                    label += ': ';
+                                                }
+                                                if (context.parsed !== null) {
+                                                    label += formatCurrency(context.parsed);
+                                                }
+                                                return label;
+                                            }
+                                        }
+                                    }
+                                }
+                            }}
+                        />
+                        {/* Center Text */}
+                        <div style={{
+                            position: 'absolute',
+                            top: '50%',
+                            left: '35%', // Approx center with right legend
+                            transform: 'translate(-50%, -50%)',
+                            textAlign: 'center',
+                            pointerEvents: 'none'
+                        }}>
+                            <div style={{ fontSize: '0.8rem', color: '#64748b' }}>Total Revenue</div>
+                            <div style={{ fontSize: '1rem', fontWeight: 'bold', color: '#334155' }}>
+                                {formatNumber(category.group_part.reduce((a, b) => a + Number(b.revenue), 0) / 1000000)}M+
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
