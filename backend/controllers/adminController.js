@@ -517,7 +517,7 @@ const uploadSales = async (req, res, next) => {
 
                 for (const item of items) {
                     totalFaktur += parseNum(item.total_faktur);
-                    diskon += parseNum(item.diskon);
+                    diskon += Math.abs(parseNum(item.diskon));
 
                     const itemNetSales = parseNum(item.net_sales);
                     netSales += itemNetSales;
@@ -578,7 +578,7 @@ const uploadSales = async (req, res, next) => {
                         const qty = parseNum(item.qty);
                         const subtotal = parseNum(item.sales); // 'Sales' column is usually the line amount
                         const price = qty !== 0 ? subtotal / qty : 0; // Calculate unit price
-                        const itemDiskon = parseNum(item.diskon); // Capture item discount
+                        const itemDiskon = Math.abs(parseNum(item.diskon)); // Capture item discount
 
                         itemPlaceholders.push(`($${idx}, $${idx + 1}, $${idx + 2}, $${idx + 3}, $${idx + 4}, $${idx + 5}, $${idx + 6})`);
                         itemValues.push(transactionId, noPart, namaPart, qty, price, subtotal, itemDiskon);
