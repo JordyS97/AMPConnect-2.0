@@ -60,7 +60,7 @@ export default function InventoryAnalytics() {
                         <div className="stat-icon" style={{ background: '#fff7ed', borderRadius: 12 }}><TrendingDown size={24} color="#ea580c" /></div>
                         <div>
                             <div className="stat-value" style={{ fontSize: '1.5rem' }}>{health.slow_moving.length}</div>
-                            <div className="stat-label">Slow Moving (>60 days)</div>
+                            <div className="stat-label">Slow Moving (&gt;60 days)</div>
                         </div>
                     </div>
                 </div>
@@ -69,7 +69,7 @@ export default function InventoryAnalytics() {
                         <div className="stat-icon" style={{ background: '#fef2f2', borderRadius: 12 }}><AlertCircle size={24} color="#dc2626" /></div>
                         <div>
                             <div className="stat-value" style={{ fontSize: '1.5rem' }}>{health.dead_stock.length}</div>
-                            <div className="stat-label">Dead Stock (>90 days)</div>
+                            <div className="stat-label">Dead Stock (&gt;90 days)</div>
                         </div>
                     </div>
                 </div>
