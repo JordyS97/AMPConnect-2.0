@@ -164,7 +164,29 @@ export default function AdminDashboard() {
                                 maintainAspectRatio: false,
                                 plugins: {
                                     legend: { display: false },
-                                    tooltip: { enabled: false }
+                                    tooltip: {
+                                        enabled: true,
+                                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                                        titleColor: '#0f172a',
+                                        bodyColor: '#475569',
+                                        borderColor: '#e2e8f0',
+                                        borderWidth: 1,
+                                        padding: 10,
+                                        cornerRadius: 8,
+                                        displayColors: false,
+                                        callbacks: {
+                                            label: function (context) {
+                                                let label = context.dataset.label || '';
+                                                if (label) {
+                                                    label += ': ';
+                                                }
+                                                if (context.parsed.y !== null) {
+                                                    label += formatCurrency(context.parsed.y);
+                                                }
+                                                return label;
+                                            }
+                                        }
+                                    }
                                 },
                                 scales: {
                                     x: { grid: { display: false }, ticks: { maxTicksLimit: 8, color: '#94a3b8', font: { size: 11 } } },
