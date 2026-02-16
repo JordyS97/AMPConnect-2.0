@@ -1194,3 +1194,212 @@ tbody tr:last-child td {
   border-radius: 2px;
   background: linear-gradient(90deg, var(--electric-blue), var(--emerald-green));
 }
+
+/* Sales Dashboard Specifics */
+.kpi-strip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+  margin-bottom: 32px;
+}
+
+.kpi-card {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 4px 20px -5px rgba(0, 0, 0, 0.05);
+  border-radius: 18px;
+  padding: 24px;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.kpi-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 30px -8px rgba(37, 99, 235, 0.15);
+  border-color: rgba(255, 255, 255, 0.9);
+}
+
+.kpi-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--electric-blue), var(--emerald-green));
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.kpi-card:hover::before {
+  opacity: 1;
+}
+
+.kpi-value {
+  font-size: 2rem;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -1px;
+  line-height: 1.1;
+  margin: 8px 0;
+}
+
+.kpi-label {
+  font-size: 0.85rem;
+  color: #64748b;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.kpi-trend {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: #f1f5f9;
+}
+
+.kpi-trend.up {
+  color: #10b981;
+  background: #dcfce7;
+}
+
+.kpi-trend.down {
+  color: #ef4444;
+  background: #fee2e2;
+}
+
+.gradient-text {
+  background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.ranked-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  border-bottom: 1px solid #f1f5f9;
+  transition: background 0.2s ease;
+  border-radius: 12px;
+}
+
+.ranked-item:hover {
+  background: #f8fafc;
+}
+
+.ranked-item:last-child {
+  border-bottom: none;
+}
+
+.rank-badge {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.9rem;
+  background: #f1f5f9;
+  color: #64748b;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.rank-badge.top-1 {
+  background: linear-gradient(135deg, #fffbeb, #fcd34d);
+  color: #92400e;
+  box-shadow: 0 4px 10px -2px rgba(251, 191, 36, 0.4);
+}
+
+.rank-badge.top-2 {
+  background: linear-gradient(135deg, #f8fafc, #cbd5e1);
+  color: #475569;
+  box-shadow: 0 4px 10px -2px rgba(148, 163, 184, 0.4);
+}
+
+.rank-badge.top-3 {
+  background: linear-gradient(135deg, #fff7ed, #fdba74);
+  color: #9a3412;
+  box-shadow: 0 4px 10px -2px rgba(251, 146, 60, 0.4);
+}
+
+.product-info {
+  flex: 1;
+}
+
+.product-name {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #1e293b;
+  margin-bottom: 4px;
+}
+
+.product-part {
+  font-size: 0.8rem;
+  color: #94a3b8;
+  font-family: 'Monaco', 'Consolas', monospace;
+}
+
+.revenue-info {
+  text-align: right;
+  min-width: 100px;
+}
+
+.revenue-value {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.trend-badge {
+  display: inline-flex;
+  font-size: 0.75rem;
+  font-weight: 600;
+  align-items: center;
+  gap: 2px;
+}
+
+.trend-badge.positive {
+  color: #10b981;
+}
+
+.trend-badge.negative {
+  color: #ef4444;
+}
+
+.progress-thin {
+  height: 6px;
+  background: #f1f5f9;
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 8px;
+  width: 100%;
+}
+
+.progress-thin .bar {
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #3b82f6, #06b6d4);
+  transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@media (max-width: 1024px) {
+  .kpi-strip {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .kpi-strip {
+    grid-template-columns: 1fr;
+  }
+}
