@@ -536,6 +536,7 @@ const uploadSales = async (req, res, next) => {
             await pool.query('ALTER TABLE transaction_items ADD COLUMN IF NOT EXISTS diskon DECIMAL(15,2) DEFAULT 0');
             await pool.query('ALTER TABLE transaction_items ADD COLUMN IF NOT EXISTS cost_price DECIMAL(20,2) DEFAULT 0');
             await pool.query('ALTER TABLE transaction_items ADD COLUMN IF NOT EXISTS group_material VARCHAR(100)');
+            await pool.query('ALTER TABLE transaction_items ADD COLUMN IF NOT EXISTS gross_profit DECIMAL(20,2) DEFAULT 0');
         } catch (dbErr) {
             console.error('Auto-migration failed:', dbErr.message);
         }
