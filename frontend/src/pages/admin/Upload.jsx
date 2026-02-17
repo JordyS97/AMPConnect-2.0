@@ -45,6 +45,7 @@ export default function UploadPage() {
             const endpoint = activeTab === 'sales' ? '/admin/upload/sales' : '/admin/upload/stock';
             const res = await api.post(endpoint, formData, {
                 headers: { 'Content-Type': 'multipart/form-data' },
+                timeout: 300000, // 5 minute timeout for large uploads
                 onUploadProgress: (e) => {
                     const pct = Math.round((e.loaded * 100) / e.total);
                     setProgress(pct);

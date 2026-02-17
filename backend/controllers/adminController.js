@@ -560,125 +560,79 @@ const uploadSales = async (req, res, next) => {
             return null;
         };
 
-        for (const noFaktur of invoices) {
-            const items = invoiceGroups[noFaktur];
-            const header = items[0]; // Take header info from first row
-
-            try {
-                const tanggal = parseDate(header.tanggal);
-                const noCustomer = header.no_customer || '';
-                const tipeFaktur = header.tipe_faktur || 'Regular';
-
-                // Aggregate totals from all items in the invoice
-                let totalFaktur = 0;
-                let diskon = 0;
-                let netSales = 0;
-                let grossProfit = 0;
-
-                for (const item of items) {
-                    const itemTotalFaktur = parseNum(item.total_faktur);
-                    totalFaktur += itemTotalFaktur;
-                    diskon += Math.abs(parseNum(item.diskon));
-
-                    // FIX: Calculate Net Sales from Total Faktur / 1.11 (Excluding Tax)
-                    const itemNetSales = itemTotalFaktur / 1.11;
-                    netSales += itemNetSales;
-
-                    // Calculate GP per item: Net Sales - Harga Pokok
-                    // Priority: 1. CSV Harga Pokok, 2. Master Part Cost, 3. CSV Gross Profit, 4. 0
-                    const hargaPokokCSV = parseNum(item.harga_pokok);
-                    const qty = parseNum(item.qty);
-                    // Force Part Number to String and validate
-                    const noPart = String(item.no_part || '').trim();
-                    if (!noPart) {
-                        throw new Error(`Part Number missing in row. Check "No Part" or "Part Number" column.`);
+        // Process invoices in PARALLEL batches of 50 for speed
+        const BATCH_SIZE = 50;
+        for (let bStart = 0; bStart < invoices.length; bStart += BATCH_SIZE) {
+            const batch = invoices.slice(bStart, bStart + BATCH_SIZE);
+            await Promise.all(batch.map(async (noFaktur) => {
+                const items = invoiceGroups[noFaktur];
+                const header = items[0];
+                try {
+                    const tanggal = parseDate(header.tanggal);
+                    const noCustomer = header.no_customer || '';
+                    const tipeFaktur = header.tipe_faktur || 'Regular';
+                    let totalFaktur = 0, diskon = 0, netSales = 0, grossProfit = 0;
+                    for (const item of items) {
+                        const tf = parseNum(item.total_faktur);
+                        totalFaktur += tf;
+                        diskon += Math.abs(parseNum(item.diskon));
+                        const ns = tf / 1.11;
+                        netSales += ns;
+                        const hp = parseNum(item.harga_pokok);
+                        const q = parseNum(item.qty);
+                        const np = String(item.no_part || '').trim();
+                        const mc = partCosts[np] || 0;
+                        let gp = 0;
+                        if (hp > 0) gp = ns - hp;
+                        else if (mc > 0) gp = ns - (q * mc);
+                        else gp = parseNum(item.gross_profit);
+                        grossProfit += gp;
                     }
-
-                    const masterCost = partCosts[noPart] || 0;
-
-                    let itemGrossProfit = 0;
-
-                    if (hargaPokokCSV > 0) {
-                        itemGrossProfit = itemNetSales - hargaPokokCSV;
-                    } else if (masterCost > 0) {
-                        itemGrossProfit = itemNetSales - (qty * masterCost);
-                    } else {
-                        itemGrossProfit = parseNum(item.gross_profit);
-                    }
-                    grossProfit += itemGrossProfit;
-                }
-
-                // Lookup customer ID from pre-cached map
-                const customerId = customerMap[noCustomer] || null;
-                if (customerId) affectedCustomerIds.add(customerId);
-
-                // Calculate GP% and Points
-                const gpPercent = netSales > 0 ? (grossProfit / netSales) * 100 : 0;
-                const pointsEarned = Math.floor(netSales / 10000); // 1 point per 10k net sales
-
-                const txRes = await pool.query(
-                    `INSERT INTO transactions (no_faktur, tanggal, customer_id, no_customer, tipe_faktur, total_faktur, diskon, net_sales, gp_percent, gross_profit, points_earned)
-                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-                     ON CONFLICT (no_faktur) DO UPDATE SET
-                     tanggal = EXCLUDED.tanggal, customer_id = EXCLUDED.customer_id, tipe_faktur = EXCLUDED.tipe_faktur,
-                     total_faktur = EXCLUDED.total_faktur, diskon = EXCLUDED.diskon, net_sales = EXCLUDED.net_sales,
-                     gp_percent = EXCLUDED.gp_percent, gross_profit = EXCLUDED.gross_profit, points_earned = EXCLUDED.points_earned
-                     RETURNING id`,
-                    [noFaktur, tanggal, customerId, noCustomer, tipeFaktur, totalFaktur, diskon, netSales, gpPercent, grossProfit, pointsEarned]
-                );
-
-                const transactionId = txRes.rows[0].id;
-
-                // Delete existing items for this invoice to replace with new data (idempotent)
-                await pool.query('DELETE FROM transaction_items WHERE transaction_id = $1', [transactionId]);
-
-                // Batch insert all items for this invoice in ONE query
-                const itemValues = [];
-                const itemPlaceholders = [];
-                let pIdx = 1;
-
-                for (const item of items) {
-                    const itemTotalFaktur = parseNum(item.total_faktur);
-                    const itemNetSales = itemTotalFaktur / 1.11;
-                    const hargaPokokCSV = parseNum(item.harga_pokok);
-                    const qty = parseNum(item.qty);
-                    const noPart = String(item.no_part || '').trim();
-                    const masterCost = partCosts[noPart] || 0;
-                    const groupMaterial = item.group_material || item.group_tobpm || item.group_part || '';
-
-                    let itemGrossProfit = 0;
-                    if (hargaPokokCSV > 0) {
-                        itemGrossProfit = itemNetSales - hargaPokokCSV;
-                    } else if (masterCost > 0) {
-                        itemGrossProfit = itemNetSales - (qty * masterCost);
-                    } else {
-                        itemGrossProfit = parseNum(item.gross_profit);
-                    }
-
-                    itemPlaceholders.push(`($${pIdx}, $${pIdx + 1}, $${pIdx + 2}, $${pIdx + 3}, $${pIdx + 4}, $${pIdx + 5}, $${pIdx + 6}, $${pIdx + 7}, $${pIdx + 8}, $${pIdx + 9})`);
-                    itemValues.push(
-                        transactionId, noPart, item.nama_part || '', qty,
-                        itemTotalFaktur, itemNetSales, parseNum(item.diskon),
-                        (hargaPokokCSV > 0 ? hargaPokokCSV : (masterCost * qty)),
-                        itemGrossProfit, groupMaterial
+                    const customerId = customerMap[noCustomer] || null;
+                    if (customerId) affectedCustomerIds.add(customerId);
+                    const gpPercent = netSales > 0 ? (grossProfit / netSales) * 100 : 0;
+                    const pointsEarned = Math.floor(netSales / 10000);
+                    const txRes = await pool.query(
+                        `INSERT INTO transactions (no_faktur, tanggal, customer_id, no_customer, tipe_faktur, total_faktur, diskon, net_sales, gp_percent, gross_profit, points_earned)
+                         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+                         ON CONFLICT (no_faktur) DO UPDATE SET tanggal=EXCLUDED.tanggal, customer_id=EXCLUDED.customer_id, tipe_faktur=EXCLUDED.tipe_faktur,
+                         total_faktur=EXCLUDED.total_faktur, diskon=EXCLUDED.diskon, net_sales=EXCLUDED.net_sales,
+                         gp_percent=EXCLUDED.gp_percent, gross_profit=EXCLUDED.gross_profit, points_earned=EXCLUDED.points_earned
+                         RETURNING id`,
+                        [noFaktur, tanggal, customerId, noCustomer, tipeFaktur, totalFaktur, diskon, netSales, gpPercent, grossProfit, pointsEarned]
                     );
-                    pIdx += 10;
+                    const transactionId = txRes.rows[0].id;
+                    await pool.query('DELETE FROM transaction_items WHERE transaction_id = $1', [transactionId]);
+                    const iv = [], ip = [];
+                    let pi = 1;
+                    for (const item of items) {
+                        const tf = parseNum(item.total_faktur);
+                        const ns = tf / 1.11;
+                        const hp = parseNum(item.harga_pokok);
+                        const q = parseNum(item.qty);
+                        const np = String(item.no_part || '').trim();
+                        const mc = partCosts[np] || 0;
+                        const gm = item.group_material || item.group_tobpm || item.group_part || '';
+                        let gp = 0;
+                        if (hp > 0) gp = ns - hp;
+                        else if (mc > 0) gp = ns - (q * mc);
+                        else gp = parseNum(item.gross_profit);
+                        ip.push(`($${pi},$${pi + 1},$${pi + 2},$${pi + 3},$${pi + 4},$${pi + 5},$${pi + 6},$${pi + 7},$${pi + 8},$${pi + 9})`);
+                        iv.push(transactionId, np, item.nama_part || '', q, tf, ns, parseNum(item.diskon), (hp > 0 ? hp : (mc * q)), gp, gm);
+                        pi += 10;
+                    }
+                    if (ip.length > 0) {
+                        await pool.query(
+                            `INSERT INTO transaction_items (transaction_id,no_part,nama_part,qty,total_faktur,subtotal,diskon,cost_price,gross_profit,group_material) VALUES ${ip.join(',')}`,
+                            iv
+                        );
+                    }
+                    successCount++;
+                } catch (err) {
+                    failedCount++;
+                    errors.push(`Faktur ${noFaktur}: ${err.message}`);
                 }
-
-                if (itemPlaceholders.length > 0) {
-                    await pool.query(
-                        `INSERT INTO transaction_items (transaction_id, no_part, nama_part, qty, total_faktur, subtotal, diskon, cost_price, gross_profit, group_material)
-                         VALUES ${itemPlaceholders.join(', ')}`,
-                        itemValues
-                    );
-                }
-
-                successCount++;
-            } catch (err) {
-                console.error(`Error processing invoice ${noFaktur}:`, err.message);
-                failedCount++;
-                errors.push(`Faktur ${noFaktur}: ${err.message}`);
-            }
+            }));
         }
         // ... (rest of function)
 
