@@ -655,19 +655,19 @@ const uploadSales = async (req, res, next) => {
                         itemGrossProfit = parseNum(item.gross_profit);
                     }
 
-                    itemPlaceholders.push(`($${pIdx}, $${pIdx + 1}, $${pIdx + 2}, $${pIdx + 3}, $${pIdx + 4}, $${pIdx + 5}, $${pIdx + 6}, $${pIdx + 7}, $${pIdx + 8}, $${pIdx + 9}, $${pIdx + 10})`);
+                    itemPlaceholders.push(`($${pIdx}, $${pIdx + 1}, $${pIdx + 2}, $${pIdx + 3}, $${pIdx + 4}, $${pIdx + 5}, $${pIdx + 6}, $${pIdx + 7}, $${pIdx + 8}, $${pIdx + 9})`);
                     itemValues.push(
-                        transactionId, noFaktur, noPart, item.nama_part || '', qty,
+                        transactionId, noPart, item.nama_part || '', qty,
                         itemTotalFaktur, itemNetSales, parseNum(item.diskon),
                         (hargaPokokCSV > 0 ? hargaPokokCSV : (masterCost * qty)),
                         itemGrossProfit, groupMaterial
                     );
-                    pIdx += 11;
+                    pIdx += 10;
                 }
 
                 if (itemPlaceholders.length > 0) {
                     await pool.query(
-                        `INSERT INTO transaction_items (transaction_id, no_faktur, no_part, nama_part, qty, total_faktur, subtotal, diskon, cost_price, gross_profit, group_material)
+                        `INSERT INTO transaction_items (transaction_id, no_part, nama_part, qty, total_faktur, subtotal, diskon, cost_price, gross_profit, group_material)
                          VALUES ${itemPlaceholders.join(', ')}`,
                         itemValues
                     );
