@@ -290,27 +290,27 @@ export default function PricingAnalytics() {
                         <pre>{JSON.stringify(lists.top_parts.slice(0, 2), null, 2)}</pre>
                     </div>
                 </div>
-            </div>
 
-            {/* Top Customers */}
-            <div className="card">
-                <h3>👥 Top 10 Customer Penerima Diskon</h3>
-                <div className="table-container">
-                    <table className="table-sm">
-                        <thead><tr><th>Customer</th><th>Trx</th><th>Total Diskon</th></tr></thead>
-                        <tbody>
-                            {lists.top_customers.map((c, i) => (
-                                <tr key={i}>
-                                    <td>{c.name}</td>
-                                    <td>{c.trx_count}</td>
-                                    <td>{formatCurrency(c.total_discount)}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+
+                {/* Top Customers */}
+                <div className="card">
+                    <h3>👥 Top 10 Customer Penerima Diskon</h3>
+                    <div className="table-container">
+                        <table className="table-sm">
+                            <thead><tr><th>Customer</th><th>Trx</th><th>Total Diskon</th></tr></thead>
+                            <tbody>
+                                {lists.top_customers.map((c, i) => (
+                                    <tr key={i}>
+                                        <td>{c.name}</td>
+                                        <td>{c.trx_count}</td>
+                                        <td>{formatCurrency(c.total_discount)}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
-        </div>
         </div >
     );
 }
