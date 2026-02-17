@@ -1201,16 +1201,13 @@ const getPriceAnalytics = async (req, res, next) => {
                         (SUM(ABS(ti.diskon)) / SUM(ti.subtotal + ABS(ti.diskon))) * 100 
                    ELSE 0 END as discount_percent,
                    CASE WHEN SUM(ti.subtotal) > 0 THEN
-                        (SUM(ti.subtotal - (ti.qty * CASE 
-                            WHEN ti.cost_price > 0 THEN ti.cost_price 
-                            ELSE COALESCE(p.amount / NULLIF(p.qty, 0), 0) 
-                        END)) / SUM(ti.subtotal)) * 100
+                        (SUM(COALESCE(ti.gross_profit, ti.subtotal - ti.cost_price * ti.qty)) / SUM(ti.subtotal)) * 100
                    ELSE 0 END as gp_percent
             FROM transaction_items ti
             LEFT JOIN parts p ON ti.no_part = p.no_part
-            WHERE ABS(ti.diskon) > 0
-            GROUP BY ti.no_part, ti.nama_part, p.amount, p.qty
-            ORDER BY total_discount DESC LIMIT 50
+            GROUP BY ti.no_part, ti.nama_part
+            HAVING SUM(ti.subtotal) > 0
+            ORDER BY total_discount DESC, total_revenue DESC LIMIT 50
         `;
         const topPartsResults = await pool.query(topPartsQuery);
         console.log(`[PriceAnalytics] Top Parts Count: ${topPartsResults.rows.length}`);
@@ -1232,12 +1229,12 @@ const getPriceAnalytics = async (req, res, next) => {
 
         // 4. Top Discounted Customers
         const topCustomersQuery = `
-            SELECT c.name, COUNT(t.id) as trx_count, SUM(ABS(t.diskon)) as total_discount
+            SELECT c.name, COUNT(t.id) as trx_count, SUM(ABS(t.diskon)) as total_discount,
+                   SUM(t.net_sales) as total_revenue
             FROM transactions t
             JOIN customers c ON t.customer_id = c.id
-            WHERE ABS(t.diskon) > 0
             GROUP BY c.id, c.name
-            ORDER BY total_discount DESC LIMIT 10
+            ORDER BY total_discount DESC, total_revenue DESC LIMIT 10
         `;
         const topCustomers = await pool.query(topCustomersQuery);
 
