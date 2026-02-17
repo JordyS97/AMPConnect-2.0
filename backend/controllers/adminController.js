@@ -574,18 +574,15 @@ const uploadSales = async (req, res, next) => {
                     let totalFaktur = 0, diskon = 0, netSales = 0, grossProfit = 0;
                     for (const item of items) {
                         const tf = parseNum(item.total_faktur);
+                        const ppn = parseNum(item.ppn);
+                        const hp = parseNum(item.harga_pokok);
                         totalFaktur += tf;
                         diskon += Math.abs(parseNum(item.diskon));
-                        const ns = tf / 1.11;
+                        // Net Sales = Total Faktur - PPN (use Excel value if available)
+                        const ns = parseNum(item.net_sales) || (tf - ppn);
                         netSales += ns;
-                        const hp = parseNum(item.harga_pokok);
-                        const q = parseNum(item.qty);
-                        const np = String(item.no_part || '').trim();
-                        const mc = partCosts[np] || 0;
-                        let gp = 0;
-                        if (hp > 0) gp = ns - hp;
-                        else if (mc > 0) gp = ns - (q * mc);
-                        else gp = parseNum(item.gross_profit);
+                        // Gross Profit = Total Faktur - PPN - Harga Pokok (use Excel value if available)
+                        const gp = parseNum(item.gross_profit) || (tf - ppn - hp);
                         grossProfit += gp;
                     }
                     const customerId = customerMap[noCustomer] || null;
@@ -607,23 +604,21 @@ const uploadSales = async (req, res, next) => {
                     let pi = 1;
                     for (const item of items) {
                         const tf = parseNum(item.total_faktur);
-                        const ns = tf / 1.11;
+                        const ppn = parseNum(item.ppn);
                         const hp = parseNum(item.harga_pokok);
                         const q = parseNum(item.qty);
                         const np = String(item.no_part || '').trim();
-                        const mc = partCosts[np] || 0;
+                        const sales = parseNum(item.sales);
                         const gm = item.group_material || item.group_tobpm || item.group_part || '';
-                        let gp = 0;
-                        if (hp > 0) gp = ns - hp;
-                        else if (mc > 0) gp = ns - (q * mc);
-                        else gp = parseNum(item.gross_profit);
+                        const ns = parseNum(item.net_sales) || (tf - ppn);
+                        const gp = parseNum(item.gross_profit) || (tf - ppn - hp);
                         ip.push(`($${pi},$${pi + 1},$${pi + 2},$${pi + 3},$${pi + 4},$${pi + 5},$${pi + 6},$${pi + 7},$${pi + 8},$${pi + 9})`);
-                        iv.push(transactionId, np, item.nama_part || '', q, tf, ns, parseNum(item.diskon), (hp > 0 ? hp : (mc * q)), gp, gm);
+                        iv.push(transactionId, np, item.nama_part || '', q, sales, ns, Math.abs(parseNum(item.diskon)), hp, gp, gm);
                         pi += 10;
                     }
                     if (ip.length > 0) {
                         await pool.query(
-                            `INSERT INTO transaction_items (transaction_id,no_part,nama_part,qty,total_faktur,subtotal,diskon,cost_price,gross_profit,group_material) VALUES ${ip.join(',')}`,
+                            `INSERT INTO transaction_items (transaction_id,no_part,nama_part,qty,price,subtotal,diskon,cost_price,gross_profit,group_material) VALUES ${ip.join(',')}`,
                             iv
                         );
                     }
