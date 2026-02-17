@@ -235,7 +235,8 @@ export default function PricingAnalytics() {
                                             x: parseFloat(p.discount_percent),
                                             y: parseFloat(p.gp_percent),
                                             name: p.nama_part,
-                                            no_part: p.no_part
+                                            no_part: p.no_part,
+                                            group_material: p.group_material // Pass through for tooltip
                                         })),
                                         backgroundColor: lists.top_parts.map(p => {
                                             // Color coding: High Disc + Low GP = Red (Bad)
@@ -268,7 +269,8 @@ export default function PricingAnalytics() {
                                             callbacks: {
                                                 label: (ctx) => {
                                                     const p = ctx.raw;
-                                                    return `${p.name} (${p.no_part}): Disc ${formatPercent(p.x)}, GP ${formatPercent(p.y)}`;
+                                                    const group = p.group_material ? ` [${p.group_material}]` : '';
+                                                    return `${p.name}${group} (${p.no_part}): Disc ${formatPercent(p.x)}, GP ${formatPercent(p.y)}`;
                                                 }
                                             }
                                         },
@@ -277,38 +279,38 @@ export default function PricingAnalytics() {
                                 }}
                             />
                         </div>
-                        <div style={{ marginTop: 12, fontSize: '0.85rem', color: '#64748b', display: 'flex', gap: 16, justifyContent: 'center' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                <span style={{ width: 10, height: 10, borderRadius: '50%', background: 'rgba(22, 163, 74, 0.7)' }}></span>
-                                Safe (Low Disc, High GP)
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                <span style={{ width: 10, height: 10, borderRadius: '50%', background: 'rgba(220, 38, 38, 0.7)' }}></span>
-                                Dangerous (High Disc, Low GP)
-                            </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <span style={{ width: 10, height: 10, borderRadius: '50%', background: 'rgba(220, 38, 38, 0.7)' }}></span>
+                            Dangerous (High Disc, Low GP)
                         </div>
                     </div>
-                </div>
-
-                {/* Top Customers */}
-                <div className="card">
-                    <h3>👥 Top 10 Customer Penerima Diskon</h3>
-                    <div className="table-container">
-                        <table className="table-sm">
-                            <thead><tr><th>Customer</th><th>Trx</th><th>Total Diskon</th></tr></thead>
-                            <tbody>
-                                {lists.top_customers.map((c, i) => (
-                                    <tr key={i}>
-                                        <td>{c.name}</td>
-                                        <td>{c.trx_count}</td>
-                                        <td>{formatCurrency(c.total_discount)}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                    {/* DEBUG DATA DUMP */}
+                    <div style={{ marginTop: 20, padding: 10, background: '#f1f5f9', borderRadius: 4, fontSize: '0.75rem', overflow: 'auto' }}>
+                        <strong>Debug Data (First 2 Items):</strong>
+                        <pre>{JSON.stringify(lists.top_parts.slice(0, 2), null, 2)}</pre>
                     </div>
                 </div>
             </div>
+
+            {/* Top Customers */}
+            <div className="card">
+                <h3>👥 Top 10 Customer Penerima Diskon</h3>
+                <div className="table-container">
+                    <table className="table-sm">
+                        <thead><tr><th>Customer</th><th>Trx</th><th>Total Diskon</th></tr></thead>
+                        <tbody>
+                            {lists.top_customers.map((c, i) => (
+                                <tr key={i}>
+                                    <td>{c.name}</td>
+                                    <td>{c.trx_count}</td>
+                                    <td>{formatCurrency(c.total_discount)}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
+        </div >
     );
 }

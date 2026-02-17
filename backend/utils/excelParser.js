@@ -169,6 +169,7 @@ const createSalesTemplate = () => {
             'MATGROUP FIX': 'BEARING',
             'Group Part': 'HGP',
             'Group TOBPM': 'NON TOBPM',
+            'Group Material': 'HND-09A', // Moved or Ensure it exists
         }
     ];
     const ws = XLSX.utils.json_to_sheet(templateData);

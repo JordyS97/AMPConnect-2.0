@@ -559,7 +559,9 @@ const uploadSales = async (req, res, next) => {
                     // Priority: 1. CSV Harga Pokok, 2. Master Part Cost, 3. CSV Gross Profit, 4. 0
                     const hargaPokokCSV = parseNum(item.harga_pokok);
                     const qty = parseNum(item.qty);
-                    const masterCost = partCosts[item.no_part] || 0;
+                    // Force Part Number to String for reliable lookup
+                    const noPart = String(item.no_part || '').trim();
+                    const masterCost = partCosts[noPart] || 0;
 
                     let itemGrossProfit = 0;
 
@@ -568,26 +570,17 @@ const uploadSales = async (req, res, next) => {
                     } else if (masterCost > 0) {
                         itemGrossProfit = itemNetSales - (qty * masterCost);
                     } else {
-                        // Fallback: if gross_profit is in CSV, we might need to recalculate or trust it?
-                        // Given we changed Net Sales logic, we should probably recalculate if possible.
-                        // But if no cost info is available, we can't calculate.
-                        // Let's assume CSV gross_profit might be outdated if we changed logic. 
-                        // But we have no choice if no cost.
                         itemGrossProfit = parseNum(item.gross_profit);
                     }
                     grossProfit += itemGrossProfit;
+
+                    // Add items for bulk insert later (optimized) - NO, we iterate and insert individually?
+                    // Wait, existing code uses bulk insert? NO, it inserts header then loop items? 
+                    // Let's check below.
                 }
 
-                // Calculate GP% based on totals
-                const gpPercent = netSales !== 0 ? (grossProfit / netSales) * 100 : 0;
+                // ... (existing header insert code) ...
 
-                if (!tanggal) throw new Error('Tgl Faktur kosong');
-
-                const customerId = customerMap[noCustomer] || null;
-                const pointsEarned = calculatePoints(netSales);
-                if (customerId) affectedCustomerIds.add(customerId);
-
-                // Upsert Transaction Header
                 const txRes = await pool.query(
                     `INSERT INTO transactions (no_faktur, tanggal, customer_id, no_customer, tipe_faktur, total_faktur, diskon, net_sales, gp_percent, gross_profit, points_earned)
                      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
@@ -598,6 +591,73 @@ const uploadSales = async (req, res, next) => {
                      RETURNING id`,
                     [noFaktur, tanggal, customerId, noCustomer, tipeFaktur, totalFaktur, diskon, netSales, gpPercent, grossProfit, pointsEarned]
                 );
+
+                const transactionId = txRes.rows[0].id;
+
+                // Delete existing items for this invoice to replace with new data (idempotent)
+                await pool.query('DELETE FROM transaction_items WHERE transaction_id = $1', [transactionId]);
+
+                for (const item of items) {
+                    const itemTotalFaktur = parseNum(item.total_faktur);
+                    const itemNetSales = itemTotalFaktur / 1.11;
+                    const hargaPokokCSV = parseNum(item.harga_pokok);
+                    const qty = parseNum(item.qty);
+                    const noPart = String(item.no_part || '').trim();
+                    const masterCost = partCosts[noPart] || 0;
+
+                    // Capture Group Material (Priority: Group Material > Group TOBPM > Group Part)
+                    const groupMaterial = item.group_material || item.group_tobpm || item.group_part || '';
+
+                    let itemGrossProfit = 0;
+                    if (hargaPokokCSV > 0) {
+                        itemGrossProfit = itemNetSales - hargaPokokCSV;
+                    } else if (masterCost > 0) {
+                        itemGrossProfit = itemNetSales - (qty * masterCost);
+                    } else {
+                        itemGrossProfit = parseNum(item.gross_profit);
+                    }
+
+                    await pool.query(
+                        `INSERT INTO transaction_items (transaction_id, no_faktur, no_part, nama_part, qty, total_faktur, subtotal, diskon, cost_price, gross_profit, group_material)
+                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+                        [
+                            transactionId,
+                            noFaktur,
+                            noPart,
+                            item.nama_part,
+                            qty,
+                            itemTotalFaktur,
+                            itemNetSales, // subtotal is net sales per item effectively
+                            parseNum(item.diskon),
+                            (hargaPokokCSV > 0 ? hargaPokokCSV : (masterCost * qty)), // Store total cost for the line
+                            itemGrossProfit,
+                            groupMaterial
+                        ]
+                    );
+                }
+
+                successCount++;
+            } catch (err) {
+                console.error(`Error processing invoice ${noFaktur}:`, err);
+                failedCount++;
+                errors.push(`Faktur ${noFaktur}: ${err.message}`);
+            }
+        }
+        // ... (rest of function)
+
+        // Fix Database Schema & Debug
+        const fixDatabase = async (req, res) => {
+            const client = await pool.connect();
+            try {
+                await client.query('BEGIN');
+
+                // 1. Ensure Columns Exist
+                await client.query('ALTER TABLE transaction_items ADD COLUMN IF NOT EXISTS diskon DECIMAL(15,2) DEFAULT 0');
+                await client.query('ALTER TABLE transaction_items ADD COLUMN IF NOT EXISTS cost_price DECIMAL(20,2) DEFAULT 0');
+                await client.query('ALTER TABLE transaction_items ADD COLUMN IF NOT EXISTS group_material VARCHAR(100)');
+
+                // ... (rest of fixDatabase)
+
 
                 const transactionId = txRes.rows[0].id;
 
@@ -1204,9 +1264,10 @@ const getPriceAnalytics = async (req, res, next) => {
         } catch (e) { /* ignore if exists/error */ }
 
         // 3. Discount vs Profit Scatter Data (Top 50 Discounted Parts)
-        // Shows Part No, Name, Total Discount, Total Revenue, Disc%, GP%
+        // Shows Part No, Name, Group Material, Total Discount, Total Revenue, Disc%, GP%
         const topPartsQuery = `
             SELECT ti.no_part, ti.nama_part, 
+                   COALESCE(MAX(ti.group_material), MAX(p.group_material), 'Unknown') as group_material,
                    SUM(ABS(ti.diskon)) as total_discount, 
                    SUM(ti.subtotal) as total_revenue,
                    CASE WHEN SUM(ti.subtotal + ABS(ti.diskon)) > 0 THEN 
@@ -1225,14 +1286,20 @@ const getPriceAnalytics = async (req, res, next) => {
             ORDER BY total_discount DESC LIMIT 50
         `;
         const topPartsResults = await pool.query(topPartsQuery);
+        console.log(`[PriceAnalytics] Top Parts Count: ${topPartsResults.rows.length}`);
+        if (topPartsResults.rows.length > 0) {
+            console.log('[PriceAnalytics] Sample Part:', topPartsResults.rows[0]);
+        }
 
         const topParts = {
             rows: topPartsResults.rows.map((row, index) => ({
                 rank: index + 1,
                 no_part: row.no_part,
                 nama_part: row.nama_part,
+                group_material: row.group_material,
                 total_discount: parseFloat(row.total_discount),
-                discount_percent: parseFloat(row.discount_percent)
+                discount_percent: parseFloat(row.discount_percent),
+                gp_percent: parseFloat(row.gp_percent)
             }))
         };
 
