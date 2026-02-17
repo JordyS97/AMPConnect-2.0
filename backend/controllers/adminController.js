@@ -1428,7 +1428,11 @@ const fixDatabase = async (req, res) => {
 
         // 2. Debug: Count items with discount
         const countRes = await client.query('SELECT COUNT(*) as cnt FROM transaction_items WHERE diskon > 0');
-        const count = countRes.rows[0].cnt;
+        const count = parseInt(countRes.rows[0].cnt);
+
+        // Debug: Count items with discount AND valid part number
+        const countWithPartRes = await client.query("SELECT COUNT(*) as cnt FROM transaction_items WHERE diskon > 0 AND no_part != '' AND no_part IS NOT NULL");
+        const countWithPart = parseInt(countWithPartRes.rows[0].cnt);
 
         // 3. Debug: Sample one item
         const sampleRes = await client.query('SELECT * FROM transaction_items WHERE diskon > 0 LIMIT 1');
@@ -1436,14 +1440,14 @@ const fixDatabase = async (req, res) => {
 
         // 4. Check Transactions with Discount
         const txCountRes = await client.query('SELECT COUNT(*) as cnt FROM transactions WHERE diskon > 0');
-        const txCount = txCountRes.rows[0].cnt;
+        const txCount = parseInt(txCountRes.rows[0].cnt);
 
         await client.query('COMMIT');
 
         res.json({
             success: true,
-            message: `Schema Fixed. Stats: ${count} Items with Discount. ${txCount} Transactions with Discount.`,
-            debug: { count, txCount, sample }
+            message: `DB Stat: ${count} Items Disc > 0. (${countWithPart} w/ PartNo). ${txCount} Trx.`,
+            debug: { count, countWithPart, txCount, sample }
         });
     } catch (error) {
         await client.query('ROLLBACK');
