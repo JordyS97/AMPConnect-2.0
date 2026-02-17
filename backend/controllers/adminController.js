@@ -185,17 +185,15 @@ const getDashboard = async (req, res, next) => {
        GROUP BY tanggal ORDER BY tanggal`
         );
 
-        // Sales by group TOBPM (current month)
-        // Using Net Sales (Subtotal - Discount)
+        // Sales by MATGROUP FIX (current month) - using net_sales
         const salesByGroup = await pool.query(
-            `SELECT COALESCE(p.group_tobpm, 'Lainnya') as group_name, 
-                    SUM(ti.subtotal - COALESCE(ti.diskon, 0)) as total
+            `SELECT COALESCE(NULLIF(ti.group_material, ''), 'Lainnya') as group_name, 
+                    SUM(ti.subtotal) as total
        FROM transaction_items ti
        JOIN transactions t ON ti.transaction_id = t.id
-       LEFT JOIN parts p ON ti.no_part = p.no_part
        WHERE EXTRACT(MONTH FROM t.tanggal) = EXTRACT(MONTH FROM NOW())
        AND EXTRACT(YEAR FROM t.tanggal) = EXTRACT(YEAR FROM NOW())
-       GROUP BY p.group_tobpm ORDER BY total DESC`
+       GROUP BY group_name ORDER BY total DESC`
         );
 
         // Top 10 best selling parts (revenue) (current month)
