@@ -5,6 +5,7 @@ const fs = require('fs');
 const { parseExcelFile, validateSalesColumns, validateStockColumns, createSalesTemplate, createStockTemplate, normalizeSalesRow } = require('../utils/excelParser');
 
 const { calculatePoints, determineTier } = require('../utils/pointsCalculator');
+const { bulkProcessSales } = require('./uploadSalesBulk');
 const XLSX = require('xlsx');
 
 // Get inventory analytics
@@ -561,75 +562,12 @@ const uploadSales = async (req, res, next) => {
             return null;
         };
 
-        // Process invoices in PARALLEL batches of 50 for speed
-        const BATCH_SIZE = 50;
-        for (let bStart = 0; bStart < invoices.length; bStart += BATCH_SIZE) {
-            const batch = invoices.slice(bStart, bStart + BATCH_SIZE);
-            await Promise.all(batch.map(async (noFaktur) => {
-                const items = invoiceGroups[noFaktur];
-                const header = items[0];
-                try {
-                    const tanggal = parseDate(header.tanggal);
-                    const noCustomer = header.no_customer || '';
-                    const tipeFaktur = header.tipe_faktur || 'Regular';
-                    let totalFaktur = 0, diskon = 0, netSales = 0, grossProfit = 0;
-                    for (const item of items) {
-                        const tf = parseNum(item.total_faktur);
-                        const ppn = parseNum(item.ppn);
-                        const hp = parseNum(item.harga_pokok);
-                        totalFaktur += tf;
-                        diskon += Math.abs(parseNum(item.diskon));
-                        // Net Sales = Total Faktur - PPN (use Excel value if available)
-                        const ns = parseNum(item.net_sales) || (tf - ppn);
-                        netSales += ns;
-                        // Gross Profit = Total Faktur - PPN - Harga Pokok (use Excel value if available)
-                        const gp = parseNum(item.gross_profit) || (tf - ppn - hp);
-                        grossProfit += gp;
-                    }
-                    const customerId = customerMap[noCustomer] || null;
-                    if (customerId) affectedCustomerIds.add(customerId);
-                    const gpPercent = netSales > 0 ? (grossProfit / netSales) * 100 : 0;
-                    const pointsEarned = Math.floor(netSales / 10000);
-                    const txRes = await pool.query(
-                        `INSERT INTO transactions (no_faktur, tanggal, customer_id, no_customer, tipe_faktur, total_faktur, diskon, net_sales, gp_percent, gross_profit, points_earned)
-                         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-                         ON CONFLICT (no_faktur) DO UPDATE SET tanggal=EXCLUDED.tanggal, customer_id=EXCLUDED.customer_id, tipe_faktur=EXCLUDED.tipe_faktur,
-                         total_faktur=EXCLUDED.total_faktur, diskon=EXCLUDED.diskon, net_sales=EXCLUDED.net_sales,
-                         gp_percent=EXCLUDED.gp_percent, gross_profit=EXCLUDED.gross_profit, points_earned=EXCLUDED.points_earned
-                         RETURNING id`,
-                        [noFaktur, tanggal, customerId, noCustomer, tipeFaktur, totalFaktur, diskon, netSales, gpPercent, grossProfit, pointsEarned]
-                    );
-                    const transactionId = txRes.rows[0].id;
-                    await pool.query('DELETE FROM transaction_items WHERE transaction_id = $1', [transactionId]);
-                    const iv = [], ip = [];
-                    let pi = 1;
-                    for (const item of items) {
-                        const tf = parseNum(item.total_faktur);
-                        const ppn = parseNum(item.ppn);
-                        const hp = parseNum(item.harga_pokok);
-                        const q = parseNum(item.qty);
-                        const np = String(item.no_part || '').trim();
-                        const sales = parseNum(item.sales);
-                        const gm = item.group_material || item.group_tobpm || item.group_part || '';
-                        const ns = parseNum(item.net_sales) || (tf - ppn);
-                        const gp = parseNum(item.gross_profit) || (tf - ppn - hp);
-                        ip.push(`($${pi},$${pi + 1},$${pi + 2},$${pi + 3},$${pi + 4},$${pi + 5},$${pi + 6},$${pi + 7},$${pi + 8},$${pi + 9})`);
-                        iv.push(transactionId, np, item.nama_part || '', q, sales, ns, Math.abs(parseNum(item.diskon)), hp, gp, gm);
-                        pi += 10;
-                    }
-                    if (ip.length > 0) {
-                        await pool.query(
-                            `INSERT INTO transaction_items (transaction_id,no_part,nama_part,qty,price,subtotal,diskon,cost_price,gross_profit,group_material) VALUES ${ip.join(',')}`,
-                            iv
-                        );
-                    }
-                    successCount++;
-                } catch (err) {
-                    failedCount++;
-                    errors.push(`Faktur ${noFaktur}: ${err.message}`);
-                }
-            }));
-        }
+        // ====== BULK PROCESSING: ~25 queries instead of ~5200 ======
+        const bulkResult = await bulkProcessSales(pool, invoiceGroups, invoices, customerMap, parseNum, parseDate);
+        successCount = bulkResult.successCount;
+        failedCount = bulkResult.failedCount;
+        errors.push(...bulkResult.errors);
+        for (const cid of bulkResult.affectedCustomerIds) affectedCustomerIds.add(cid);
         // ... (rest of function)
 
         // Fix Database Schema & Debug
@@ -758,9 +696,9 @@ const uploadSales = async (req, res, next) => {
         res.json({
             success: true,
             message: failedCount > 0
-                ? `Proses selesai dengan error. ${successCount} berhasil, ${failedCount} gagal. Contoh Error: ${typeof errors[0] === 'string' ? errors[0] : (errors[0]?.error || JSON.stringify(errors[0]))}`
-                : `Data penjualan berhasil diproses. ${successCount} baris berhasil.`,
-            data: { rows_processed: data.length, success_count: successCount, failed_count: failedCount, errors: errors.slice(0, 20) }
+                ? `Proses selesai dengan error. ${successCount} faktur berhasil, ${failedCount} gagal dari ${data.length} baris. Contoh Error: ${typeof errors[0] === 'string' ? errors[0] : (errors[0]?.error || JSON.stringify(errors[0]))}`
+                : `Data penjualan berhasil diproses. ${data.length} baris, ${successCount} faktur berhasil.`,
+            data: { rows_processed: data.length, invoices_processed: successCount, success_count: successCount, failed_count: failedCount, errors: errors.slice(0, 20) }
         });
     } catch (error) {
         next(error);
