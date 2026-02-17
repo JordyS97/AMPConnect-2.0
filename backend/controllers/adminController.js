@@ -531,6 +531,15 @@ const uploadSales = async (req, res, next) => {
             partCosts[p.no_part] = qty > 0 ? amount / qty : 0;
         });
 
+        // Ensure columns exist (Lazy Migration) - run ONCE before loop
+        try {
+            await pool.query('ALTER TABLE transaction_items ADD COLUMN IF NOT EXISTS diskon DECIMAL(15,2) DEFAULT 0');
+            await pool.query('ALTER TABLE transaction_items ADD COLUMN IF NOT EXISTS cost_price DECIMAL(20,2) DEFAULT 0');
+            await pool.query('ALTER TABLE transaction_items ADD COLUMN IF NOT EXISTS group_material VARCHAR(100)');
+        } catch (dbErr) {
+            console.error('Auto-migration failed:', dbErr.message);
+        }
+
         for (const noFaktur of invoices) {
             const items = invoiceGroups[noFaktur];
             const header = items[0]; // Take header info from first row
@@ -545,15 +554,6 @@ const uploadSales = async (req, res, next) => {
                 let diskon = 0;
                 let netSales = 0;
                 let grossProfit = 0;
-
-                // Ensure columns exist (Lazy Migration) to prevent "column does not exist" errors
-                try {
-                    await pool.query('ALTER TABLE transaction_items ADD COLUMN IF NOT EXISTS diskon DECIMAL(15,2) DEFAULT 0');
-                    await pool.query('ALTER TABLE transaction_items ADD COLUMN IF NOT EXISTS cost_price DECIMAL(20,2) DEFAULT 0');
-                    await pool.query('ALTER TABLE transaction_items ADD COLUMN IF NOT EXISTS group_material VARCHAR(100)');
-                } catch (dbErr) {
-                    console.error('Auto-migration failed:', dbErr.message); // Non-fatal
-                }
 
                 for (const item of items) {
                     const itemTotalFaktur = parseNum(item.total_faktur);
