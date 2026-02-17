@@ -103,6 +103,10 @@ const uploadQR = multer({
     limits: { fileSize: 2 * 1024 * 1024 } // 2MB
 });
 
+
 router.post('/settings/qr', uploadLimiter, uploadQR.single('file'), require('../controllers/adminController').uploadSettingsQR);
+
+// Recalculate Financials
+router.post('/recalculate', require('../controllers/adminController').recalculateFinancials);
 
 module.exports = router;

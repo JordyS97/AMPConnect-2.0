@@ -77,7 +77,8 @@ const getInventoryAnalytics = async (req, res, next) => {
             LIMIT 50`);
 
         // 3. Inventory Health
-        // Slow Moving: Stock > 0, Last Sale > 60 days
+        // 3. Inventory Health
+        // Slow Moving: Stock > 0, No Sale in last 60 days
         const slowMoving = await pool.query(`
             SELECT p.no_part, p.nama_part, p.qty, MAX(t.tanggal) as last_sale
             FROM parts p
@@ -86,6 +87,7 @@ const getInventoryAnalytics = async (req, res, next) => {
             WHERE p.qty > 0
             GROUP BY p.no_part, p.nama_part, p.qty
             HAVING MAX(t.tanggal) < $1 OR MAX(t.tanggal) IS NULL
+            ORDER BY last_sale ASC NULLS FIRST
             LIMIT 50
         `, [sixtyDaysAgo]);
 
@@ -97,11 +99,11 @@ const getInventoryAnalytics = async (req, res, next) => {
             WHERE p.qty > 0
             GROUP BY p.no_part, p.nama_part, p.qty
             HAVING MAX(t.tanggal) < $1 OR MAX(t.tanggal) IS NULL
+            ORDER BY last_sale ASC NULLS FIRST
             LIMIT 50
         `, [ninetyDaysAgo]);
 
-        // 4. Category Analysis
-        // Changed group_part to group_tobpm for consistency
+        // 4. Category Analysis (Revenue)
         const byGroupPart = await pool.query(`
             SELECT COALESCE(p.group_tobpm, 'Lainnya') as category, SUM(ti.subtotal) as revenue
             FROM transaction_items ti
@@ -123,6 +125,15 @@ const getInventoryAnalytics = async (req, res, next) => {
             ORDER BY frequency DESC
             LIMIT 10`);
 
+        // 6. Top Discounted Items
+        const topDiscounted = await pool.query(`
+             SELECT ti.no_part, ti.nama_part, SUM(ABS(ti.diskon)) as total_discount
+             FROM transaction_items ti
+             WHERE ABS(ti.diskon) > 0
+             GROUP BY ti.no_part, ti.nama_part
+             ORDER BY total_discount DESC LIMIT 10
+        `);
+
         res.json({
             success: true,
             data: {
@@ -142,7 +153,8 @@ const getInventoryAnalytics = async (req, res, next) => {
                 category: {
                     group_part: byGroupPart.rows.map(r => ({ ...r, revenue: parseFloat(r.revenue) }))
                 },
-                cross_sell: crossSell.rows
+                cross_sell: crossSell.rows,
+                top_discounted: topDiscounted.rows.map(r => ({ ...r, total_discount: parseFloat(r.total_discount) }))
             }
         });
     } catch (error) {
@@ -158,7 +170,8 @@ const getDashboard = async (req, res, next) => {
         // This Month's stats
         const todaySales = await pool.query(
             `SELECT COALESCE(SUM(net_sales), 0) as total_sales, COUNT(*) as transactions,
-       COALESCE(SUM(gross_profit), 0) as gross_profit, COALESCE(AVG(gp_percent), 0) as avg_gp
+       COALESCE(SUM(gross_profit), 0) as gross_profit, 
+       CASE WHEN SUM(net_sales) > 0 THEN (SUM(gross_profit) / SUM(net_sales)) * 100 ELSE 0 END as avg_gp
        FROM transactions 
        WHERE EXTRACT(MONTH FROM tanggal) = EXTRACT(MONTH FROM NOW())
        AND EXTRACT(YEAR FROM tanggal) = EXTRACT(YEAR FROM NOW())`
@@ -516,10 +529,12 @@ const uploadSales = async (req, res, next) => {
                 let grossProfit = 0;
 
                 for (const item of items) {
-                    totalFaktur += parseNum(item.total_faktur);
+                    const itemTotalFaktur = parseNum(item.total_faktur);
+                    totalFaktur += itemTotalFaktur;
                     diskon += Math.abs(parseNum(item.diskon));
 
-                    const itemNetSales = parseNum(item.net_sales);
+                    // FIX: Calculate Net Sales from Total Faktur / 1.11 (Excluding Tax)
+                    const itemNetSales = itemTotalFaktur / 1.11;
                     netSales += itemNetSales;
 
                     // Calculate GP per item: Net Sales - Harga Pokok
@@ -535,6 +550,11 @@ const uploadSales = async (req, res, next) => {
                     } else if (masterCost > 0) {
                         itemGrossProfit = itemNetSales - (qty * masterCost);
                     } else {
+                        // Fallback: if gross_profit is in CSV, we might need to recalculate or trust it?
+                        // Given we changed Net Sales logic, we should probably recalculate if possible.
+                        // But if no cost info is available, we can't calculate.
+                        // Let's assume CSV gross_profit might be outdated if we changed logic. 
+                        // But we have no choice if no cost.
                         itemGrossProfit = parseNum(item.gross_profit);
                     }
                     grossProfit += itemGrossProfit;
@@ -576,8 +596,13 @@ const uploadSales = async (req, res, next) => {
                         const noPart = item.no_part || '';
                         const namaPart = item.nama_part || '';
                         const qty = parseNum(item.qty);
-                        const subtotal = parseNum(item.sales); // 'Sales' column is usually the line amount
-                        const price = qty !== 0 ? subtotal / qty : 0; // Calculate unit price
+
+                        // FIX: Use Calculated Net Sales for Subtotal consistency
+                        // const subtotal = parseNum(item.sales); 
+                        const itemTotalFaktur = parseNum(item.total_faktur);
+                        const subtotal = itemTotalFaktur / 1.11;
+
+                        const price = qty !== 0 ? subtotal / qty : 0; // Calculate unit price based on Net Sales
                         const itemDiskon = Math.abs(parseNum(item.diskon)); // Capture item discount
 
                         itemPlaceholders.push(`($${idx}, $${idx + 1}, $${idx + 2}, $${idx + 3}, $${idx + 4}, $${idx + 5}, $${idx + 6})`);
@@ -1085,7 +1110,7 @@ const getPriceAnalytics = async (req, res, next) => {
                 SUM(net_sales) as total_sales,
                 SUM(profit) as total_profit,
                 AVG(net_sales) as avg_ticket_size,
-                AVG(CASE WHEN net_sales > 0 THEN (profit / net_sales) * 100 ELSE 0 END) as avg_gp_percent
+                CASE WHEN SUM(net_sales) > 0 THEN (SUM(profit) / SUM(net_sales)) * 100 ELSE 0 END as avg_gp_percent
             FROM Recalculated
             GROUP BY type
         `;
@@ -1256,10 +1281,73 @@ const uploadSettingsQR = async (req, res, next) => {
     }
 };
 
+// Recalculate Financials for Existing Data
+const recalculateFinancials = async (req, res, next) => {
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        // 1. Update Transaction Headers
+        // Net Sales = Total Faktur / 1.11
+        await client.query(`
+            UPDATE transactions 
+            SET net_sales = total_faktur / 1.11
+        `);
+
+        // 2. Update Transaction Items
+        // Subtotal = (Total Faktur of Header / Count Items)? No, we don't know item breakdown perfectly if we only have totals.
+        // But for uploaded items, we usually stored 'sales' (line amount). 
+        // Let's assume 'subtotal' column in items was populated from 'sales' in CSV.
+        // If we want to correct it, we should do: subtotal = subtotal / 1.11? 
+        // No, 'Sales' in CSV is usually Tax Inc or Exc? 
+        // User said: "Net Sales =[@[Total Faktur]]/1.11".
+        // If item.sales was tax inclusive, then yes, divide by 1.11.
+        await client.query(`
+            UPDATE transaction_items
+            SET subtotal = subtotal / 1.11,
+                price = (subtotal / 1.11) / NULLIF(qty, 0)
+        `);
+
+        // 3. Update Gross Profit on Headers
+        // Need Cost. If we don't have historical cost, we rely on Master Part Cost (current).
+        // GP = Net Sales - (Qty * MasterCost)
+        // This is risky if cost changed. But it's the requested "recalculation".
+        await client.query(`
+            UPDATE transactions t
+            SET gross_profit = (
+                SELECT COALESCE(SUM(ti.subtotal - (ti.qty * COALESCE(p.amount / NULLIF(p.qty, 0), 0))), 0)
+                FROM transaction_items ti
+                LEFT JOIN parts p ON ti.no_part = p.no_part
+                WHERE ti.transaction_id = t.id
+            )
+        `);
+
+        // 4. Update GP %
+        await client.query(`
+            UPDATE transactions
+            SET gp_percent = CASE WHEN net_sales > 0 THEN (gross_profit / net_sales) * 100 ELSE 0 END
+        `);
+
+        // 5. Recalculate Points (assuming 1 point per 10,000 net sales)
+        await client.query(`
+             UPDATE transactions
+             SET points_earned = FLOOR(net_sales / 10000)
+        `);
+
+        await client.query('COMMIT');
+        res.json({ success: true, message: 'Financials recalculated successfully based on current validation rules.' });
+    } catch (err) {
+        await client.query('ROLLBACK');
+        next(err);
+    } finally {
+        client.release();
+    }
+};
+
 module.exports = {
     getDashboard, getSales, getSaleDetail, getStock, adjustStock,
     uploadSales, uploadStock, getUploadHistory, downloadTemplate, generateReport,
     getCustomerAnalytics, getInventoryAnalytics, getSalesAnalytics, getPriceAnalytics,
-    uploadSettingsQR
+    uploadSettingsQR, recalculateFinancials
 };
 

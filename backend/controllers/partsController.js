@@ -3,7 +3,7 @@ const pool = require('../config/db');
 // Get parts list with search, filter, sort, pagination
 const getParts = async (req, res, next) => {
     try {
-        const { page = 1, limit = 20, search, group_material, group_part, sort = 'nama_part_asc' } = req.query;
+        const { page = 1, limit = 20, search, group_material, group_part, stock_status, sort = 'nama_part_asc' } = req.query;
         const offset = (page - 1) * limit;
 
         let query = 'SELECT * FROM parts WHERE 1=1';
@@ -26,6 +26,17 @@ const getParts = async (req, res, next) => {
             query += ` AND group_part = $${paramIndex}`;
             params.push(group_part);
             paramIndex++;
+        }
+
+        // Stock Status Filter
+        if (stock_status && stock_status !== 'all') {
+            if (stock_status === 'in_stock') {
+                query += ` AND qty > 20`;
+            } else if (stock_status === 'low_stock') {
+                query += ` AND qty > 0 AND qty <= 20`;
+            } else if (stock_status === 'out_of_stock') {
+                query += ` AND qty = 0`;
+            }
         }
 
         // Count total
@@ -80,4 +91,30 @@ const getGroups = async (req, res, next) => {
     }
 };
 
-module.exports = { getParts, getGroups };
+// Get Inventory Stats for Dashboard
+const getInventoryStats = async (req, res, next) => {
+    try {
+        const stats = await pool.query(`
+            SELECT 
+                COUNT(*) as total_parts,
+                COUNT(CASE WHEN qty > 0 AND qty <= 20 THEN 1 END) as low_stock,
+                COUNT(CASE WHEN qty = 0 THEN 1 END) as out_of_stock,
+                COALESCE(SUM(qty * amount), 0) as total_value
+            FROM parts
+        `);
+
+        res.json({
+            success: true,
+            data: {
+                total_parts: parseInt(stats.rows[0].total_parts),
+                low_stock: parseInt(stats.rows[0].low_stock),
+                out_of_stock: parseInt(stats.rows[0].out_of_stock),
+                total_value: parseFloat(stats.rows[0].total_value)
+            }
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+module.exports = { getParts, getGroups, getInventoryStats };
