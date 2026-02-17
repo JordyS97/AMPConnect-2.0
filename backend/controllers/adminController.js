@@ -1190,40 +1190,78 @@ const getPriceAnalytics = async (req, res, next) => {
             await pool.query('ALTER TABLE transaction_items ADD COLUMN IF NOT EXISTS diskon DECIMAL(15,2) DEFAULT 0');
         } catch (e) { /* ignore if exists/error */ }
 
-        // 3. Discount vs Profit Scatter Data (Top 50 Discounted Parts)
-        // Shows Part No, Name, Group Material, Total Discount, Total Revenue, Disc%, GP%
-        const topPartsQuery = `
-            SELECT ti.no_part, ti.nama_part, 
-                   COALESCE(MAX(ti.group_material), MAX(p.group_material), 'Unknown') as group_material,
-                   SUM(ABS(ti.diskon)) as total_discount, 
-                   SUM(ti.subtotal) as total_revenue,
-                   CASE WHEN SUM(ti.subtotal + ABS(ti.diskon)) > 0 THEN 
-                        (SUM(ABS(ti.diskon)) / SUM(ti.subtotal + ABS(ti.diskon))) * 100 
-                   ELSE 0 END as discount_percent,
-                   CASE WHEN SUM(ti.subtotal) > 0 THEN
-                        (SUM(COALESCE(ti.gross_profit, ti.subtotal - ti.cost_price * ti.qty)) / SUM(ti.subtotal)) * 100
-                   ELSE 0 END as gp_percent
-            FROM transaction_items ti
-            LEFT JOIN parts p ON ti.no_part = p.no_part
-            GROUP BY ti.no_part, ti.nama_part
-            HAVING SUM(ti.subtotal) > 0
-            ORDER BY total_discount DESC, total_revenue DESC LIMIT 50
-        `;
-        const topPartsResults = await pool.query(topPartsQuery);
-        console.log(`[PriceAnalytics] Top Parts Count: ${topPartsResults.rows.length}`);
-        if (topPartsResults.rows.length > 0) {
-            console.log('[PriceAnalytics] Sample Part:', topPartsResults.rows[0]);
+        // 3. Discount vs Profit Scatter Data by Group Material
+        // Matches user's Excel: rows=group_material, Disc%, GP%
+        let topPartsResults;
+        try {
+            // Primary: use transaction_items grouped by group_material
+            const topPartsQuery = `
+                SELECT 
+                    COALESCE(ti.group_material, p.group_material, 'Unknown') as group_material,
+                    SUM(ABS(ti.diskon)) as total_discount, 
+                    SUM(ti.price) as total_sales,
+                    SUM(ti.subtotal) as total_revenue,
+                    CASE WHEN SUM(ti.price) > 0 THEN 
+                         (SUM(ABS(ti.diskon)) / SUM(ti.price)) * 100 
+                    ELSE 0 END as discount_percent,
+                    CASE WHEN SUM(ti.subtotal) > 0 THEN
+                         (SUM(COALESCE(ti.gross_profit, ti.subtotal - ti.cost_price * ti.qty)) / SUM(ti.subtotal)) * 100
+                    ELSE 0 END as gp_percent,
+                    COUNT(DISTINCT ti.no_part) as part_count
+                FROM transaction_items ti
+                LEFT JOIN parts p ON ti.no_part = p.no_part
+                GROUP BY COALESCE(ti.group_material, p.group_material, 'Unknown')
+                HAVING SUM(ti.subtotal) > 0
+                ORDER BY total_discount DESC LIMIT 50
+            `;
+            topPartsResults = await pool.query(topPartsQuery);
+            console.log(`[PriceAnalytics] Scatter by group_material: ${topPartsResults.rows.length} groups`);
+        } catch (err) {
+            console.log(`[PriceAnalytics] Scatter query error:`, err.message);
+            topPartsResults = { rows: [] };
+        }
+
+        // Fallback: if transaction_items empty, try from transactions table
+        if (topPartsResults.rows.length === 0) {
+            console.log('[PriceAnalytics] transaction_items empty, trying fallback from transactions...');
+            try {
+                const fallbackQuery = `
+                    SELECT 
+                        'All Sales' as group_material,
+                        SUM(ABS(t.diskon)) as total_discount,
+                        SUM(t.total_faktur) as total_sales,
+                        SUM(t.net_sales) as total_revenue,
+                        CASE WHEN SUM(t.total_faktur) > 0 THEN
+                             (SUM(ABS(t.diskon)) / SUM(t.total_faktur)) * 100
+                        ELSE 0 END as discount_percent,
+                        CASE WHEN SUM(t.net_sales) > 0 THEN
+                             (SUM(COALESCE(t.gross_profit, 0)) / SUM(t.net_sales)) * 100
+                        ELSE 0 END as gp_percent,
+                        COUNT(*) as part_count
+                    FROM transactions t
+                    WHERE t.net_sales > 0
+                `;
+                topPartsResults = await pool.query(fallbackQuery);
+                console.log(`[PriceAnalytics] Fallback results: ${topPartsResults.rows.length} rows`);
+                if (topPartsResults.rows.length > 0) {
+                    console.log('[PriceAnalytics] Fallback sample:', topPartsResults.rows[0]);
+                }
+            } catch (err2) {
+                console.log('[PriceAnalytics] Fallback also failed:', err2.message);
+                topPartsResults = { rows: [] };
+            }
         }
 
         const topParts = {
             rows: topPartsResults.rows.map((row, index) => ({
                 rank: index + 1,
-                no_part: row.no_part,
-                nama_part: row.nama_part,
+                no_part: row.group_material,
+                nama_part: row.group_material,
                 group_material: row.group_material,
-                total_discount: parseFloat(row.total_discount),
-                discount_percent: parseFloat(row.discount_percent),
-                gp_percent: parseFloat(row.gp_percent)
+                total_discount: parseFloat(row.total_discount || 0),
+                discount_percent: parseFloat(row.discount_percent || 0),
+                gp_percent: parseFloat(row.gp_percent || 0),
+                part_count: parseInt(row.part_count || 0)
             }))
         };
 
