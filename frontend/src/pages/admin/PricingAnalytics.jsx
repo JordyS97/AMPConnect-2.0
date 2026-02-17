@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Bar, Line, Doughnut } from 'react-chartjs-2';
+import { Bar, Line, Doughnut, Scatter } from 'react-chartjs-2';
 import { Tag, TrendingDown, AlertTriangle, DollarSign, Percent, ArrowRight } from 'lucide-react';
 import { formatCurrency, formatNumber, formatPercent } from '../../utils/formatters';
 import { useToast } from '../../components/Toast';
@@ -190,21 +190,67 @@ export default function PricingAnalytics() {
                 <div className="card">
                     <h3>🏆 Top 10 Produk Didiskon (Value)</h3>
                     <div className="table-container">
-                        <table className="table-sm">
-                            <thead><tr><th style={{ width: '50px' }}>Rank</th><th>Part Number</th><th>Part Name</th><th style={{ textAlign: 'right' }}>% Discount</th></tr></thead>
-                            <tbody>
-                                {lists.top_parts.map((p, i) => (
-                                    <tr key={i}>
-                                        <td style={{ textAlign: 'center' }}>{p.rank}</td>
-                                        <td style={{ fontFamily: 'monospace', color: '#64748b' }}>{p.no_part}</td>
-                                        <td style={{ fontWeight: 500 }}>{p.nama_part}</td>
-                                        <td style={{ textAlign: 'right', fontWeight: 'bold', color: '#dc2626' }}>
-                                            {formatPercent(p.discount_percent)}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                        <div style={{ height: 350 }}>
+                            <Scatter
+                                data={{
+                                    datasets: [{
+                                        label: 'Products',
+                                        data: lists.top_parts.map(p => ({
+                                            x: parseFloat(p.discount_percent),
+                                            y: parseFloat(p.gp_percent),
+                                            name: p.nama_part,
+                                            no_part: p.no_part
+                                        })),
+                                        backgroundColor: lists.top_parts.map(p => {
+                                            // Color coding: High Disc + Low GP = Red (Bad)
+                                            // Low Disc + High GP = Green (Good)
+                                            const disc = parseFloat(p.discount_percent);
+                                            const gp = parseFloat(p.gp_percent);
+                                            if (disc > 20 && gp < 10) return 'rgba(220, 38, 38, 0.7)'; // Red
+                                            if (disc < 10 && gp > 20) return 'rgba(22, 163, 74, 0.7)'; // Green
+                                            return 'rgba(37, 99, 235, 0.6)'; // Blue default
+                                        }),
+                                        pointRadius: 6,
+                                        pointHoverRadius: 8
+                                    }]
+                                }}
+                                options={{
+                                    responsive: true,
+                                    maintainAspectRatio: false,
+                                    scales: {
+                                        x: {
+                                            title: { display: true, text: 'Discount %' },
+                                            min: 0
+                                        },
+                                        y: {
+                                            title: { display: true, text: 'Gross Profit %' },
+                                            beginAtZero: true
+                                        }
+                                    },
+                                    plugins: {
+                                        tooltip: {
+                                            callbacks: {
+                                                label: (ctx) => {
+                                                    const p = ctx.raw;
+                                                    return `${p.name} (${p.no_part}): Disc ${formatPercent(p.x)}, GP ${formatPercent(p.y)}`;
+                                                }
+                                            }
+                                        },
+                                        legend: { display: false }
+                                    }
+                                }}
+                            />
+                        </div>
+                        <div style={{ marginTop: 12, fontSize: '0.85rem', color: '#64748b', display: 'flex', gap: 16, justifyContent: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <span style={{ width: 10, height: 10, borderRadius: '50%', background: 'rgba(22, 163, 74, 0.7)' }}></span>
+                                Safe (Low Disc, High GP)
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <span style={{ width: 10, height: 10, borderRadius: '50%', background: 'rgba(220, 38, 38, 0.7)' }}></span>
+                                Dangerous (High Disc, Low GP)
+                            </div>
+                        </div>
                     </div>
                 </div>
 

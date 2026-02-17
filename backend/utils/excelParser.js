@@ -43,6 +43,18 @@ const SALES_COLUMN_MAP = {
     'MATGROUP FIX': 'matgroup_fix',
     'Group Part': 'group_part',
     'Group TOBPM': 'group_tobpm',
+    // Aliases for robust parsing
+    'Discount': 'diskon',
+    'Disc': 'diskon',
+    'Potongan': 'diskon',
+    'Amount Discount': 'diskon',
+    'Total Discount': 'diskon', // Common variation
+    'Net Amount': 'net_sales',
+    'Total Net': 'net_sales',
+    'Cost': 'harga_pokok',
+    'HPP': 'harga_pokok',
+    'Pajak': 'ppn',
+    'Tax': 'ppn',
 };
 
 /**
@@ -79,12 +91,35 @@ const validateSalesColumns = (data) => {
  * Validate stock data columns
  */
 const validateStockColumns = (data) => {
-    const requiredColumns = ['NO PART', 'NAMA PART', 'QTY'];
+    // Required normalized keys (UPPERCASE_WITH_UNDERSCORES)
+    const requiredColumns = ['NO_PART', 'NAMA_PART', 'QTY'];
 
     if (data.length === 0) return { valid: false, missing: requiredColumns };
 
-    const columns = Object.keys(data[0]).map(c => c.toUpperCase().trim());
-    const missing = requiredColumns.filter(col => !columns.includes(col));
+    // Get keys from first row and normalize them
+    const firstRow = data[0];
+    const normalizedKeys = Object.keys(firstRow).map(k => k.toString().trim().toUpperCase().replace(/\s+/g, '_'));
+
+    // Check if required columns exist in normalized keys
+    // Allow variations: NO_PART might be PART_NUMBER etc. (handled in uploadStock but validation needs to be passable)
+    // Let's stick to standard strict validation for now:
+    // If user provides "No Part", normalized is "NO_PART". Match!
+    // If user provides "Part Number", normalized is "PART_NUMBER".
+    // We should probably allow alternative required columns in validation too if we support them in upload.
+
+    // For now, let's keep it simple: Ensure standard headers are present (case insensitive)
+    // The previous validation was: required = ['NO PART', ...] and checked against UpperCase keys.
+    // If user has 'No Part', Upper is 'NO PART'. It matched.
+    // The issue might be extra spaces or different names.
+
+    // Let's check for mapped existence.
+    const missing = requiredColumns.filter(req => {
+        // Check if this required column (or its aliases) exists in normalized keys
+        if (req === 'NO_PART') return !normalizedKeys.includes('NO_PART') && !normalizedKeys.includes('PART_NUMBER') && !normalizedKeys.includes('NOMOR_PART');
+        if (req === 'NAMA_PART') return !normalizedKeys.includes('NAMA_PART') && !normalizedKeys.includes('PART_NAME') && !normalizedKeys.includes('DESKRIPSI');
+        if (req === 'QTY') return !normalizedKeys.includes('QTY') && !normalizedKeys.includes('QUANTITY') && !normalizedKeys.includes('STOK') && !normalizedKeys.includes('STOCK');
+        return !normalizedKeys.includes(req);
+    });
 
     return { valid: missing.length === 0, missing };
 };
@@ -163,5 +198,13 @@ module.exports = {
     createSalesTemplate,
     createStockTemplate,
     normalizeSalesRow,
+    normalizeStockRow: (row) => {
+        const normalized = {};
+        for (const [key, value] of Object.entries(row)) {
+            const cleanKey = key.toString().trim().toUpperCase().replace(/\s+/g, '_');
+            normalized[cleanKey] = value;
+        }
+        return normalized;
+    },
     SALES_COLUMN_MAP,
 };

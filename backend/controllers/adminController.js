@@ -422,6 +422,14 @@ const uploadSales = async (req, res, next) => {
             return res.status(400).json({ success: false, message: `Kolom wajib tidak ditemukan: ${validation.missing.join(', ')}` });
         }
 
+        // Guarantee Schema (because lazy migration might not have run)
+        try {
+            await pool.query('ALTER TABLE transaction_items ADD COLUMN IF NOT EXISTS diskon DECIMAL(15,2) DEFAULT 0');
+            await pool.query('ALTER TABLE transaction_items ADD COLUMN IF NOT EXISTS cost_price DECIMAL(20,2) DEFAULT 0');
+        } catch (e) {
+            console.error('Schema migration error (safe to ignore if columns exist):', e);
+        }
+
         // Create upload history record
         const upload = await pool.query(
             `INSERT INTO upload_history (admin_id, admin_username, file_type, file_name, rows_processed, status) 
@@ -479,10 +487,20 @@ const uploadSales = async (req, res, next) => {
         const parseNum = (v) => {
             if (typeof v === 'number') return v;
             if (!v) return 0;
-            // User confirmed format: "," is thousands separator, "." is decimal separator.
-            // Example: 1,292,458,670.00 -> 1292458670.00
-            const s = String(v).replace(/,/g, '').trim();
-            return parseFloat(s) || 0;
+
+            let s = String(v).trim();
+
+            // Handle (123) as negative
+            const isNegative = s.includes('(') && s.includes(')') || s.startsWith('-');
+
+            // Remove everything except digits and dots (assuming dot is decimal)
+            // If comma is used as decimal, this logic needs adjustment. 
+            // Based on previous code "1,292... -> replace comma", we assume comma = thousand, dot = decimal.
+            s = s.replace(/[^0-9.]/g, '');
+
+            let val = parseFloat(s) || 0;
+            if (isNegative) val = -Math.abs(val);
+            return val;
         };
 
         for (let i = 0; i < data.length; i++) {
@@ -602,21 +620,47 @@ const uploadSales = async (req, res, next) => {
                         const itemTotalFaktur = parseNum(item.total_faktur);
                         const subtotal = itemTotalFaktur / 1.11;
 
-                        const price = qty !== 0 ? subtotal / qty : 0; // Calculate unit price based on Net Sales
-                        const itemDiskon = Math.abs(parseNum(item.diskon)); // Capture item discount
+                        const price = qty > 0 ? subtotal / qty : 0;
 
-                        itemPlaceholders.push(`($${idx}, $${idx + 1}, $${idx + 2}, $${idx + 3}, $${idx + 4}, $${idx + 5}, $${idx + 6})`);
-                        itemValues.push(transactionId, noPart, namaPart, qty, price, subtotal, itemDiskon);
-                        idx += 7;
+                        // UNIT COST LOGIC
+                        // Priority: 1. CSV Harga Pokok (converted to Unit Cost), 2. Master Part Cost, 3. CSV Gross Profit (Derived)
+                        let unitCost = 0;
+                        let itemGrossProfit = 0;
+
+                        const hargaPokokCSV = parseNum(item.harga_pokok);
+                        const masterCost = partCosts[item.no_part] || 0;
+
+                        if (hargaPokokCSV > 0) {
+                            // CSV Harga Pokok is Total Cost for the line
+                            unitCost = qty > 0 ? hargaPokokCSV / qty : 0;
+                            itemGrossProfit = subtotal - hargaPokokCSV;
+                        } else if (masterCost > 0) {
+                            unitCost = masterCost;
+                            itemGrossProfit = subtotal - (qty * unitCost);
+                        } else {
+                            // Fallback: Use CSV Gross Profit to derive cost
+                            // GP = Sales - Cost => Cost = Sales - GP
+                            const csvGP = parseNum(item.gross_profit);
+                            const derivedTotalCost = subtotal - csvGP;
+                            unitCost = qty > 0 ? derivedTotalCost / qty : 0;
+                            itemGrossProfit = csvGP; // Use reported GP directly if no cost info
+                        }
+
+                        // Ensure non-negative cost if logic fails? No, allow it, but maybe warn.
+                        if (unitCost < 0) unitCost = 0;
+
+                        itemPlaceholders.push(`($${idx}, $${idx + 1}, $${idx + 2}, $${idx + 3}, $${idx + 4}, $${idx + 5}, $${idx + 6}, $${idx + 7})`);
+                        itemValues.push(transactionId, noPart, namaPart, qty, price, subtotal, Math.abs(parseNum(item.diskon)), unitCost);
+                        idx += 8;
                     }
 
                     // Batch insert items
                     if (itemValues.length > 0) {
-                        await pool.query(
-                            `INSERT INTO transaction_items (transaction_id, no_part, nama_part, qty, price, subtotal, diskon)
-                             VALUES ${itemPlaceholders.join(', ')}`,
-                            itemValues
-                        );
+                        const itemQuery = `
+                            INSERT INTO transaction_items (transaction_id, no_part, nama_part, qty, price, subtotal, diskon, cost_price)
+                            VALUES ${itemPlaceholders.join(', ')}
+                        `;
+                        await pool.query(itemQuery, itemValues);
                     }
                 }
 
@@ -703,16 +747,26 @@ const uploadStock = async (req, res, next) => {
         // Wipe all existing stock — new upload fully replaces old data
         await pool.query('DELETE FROM parts');
 
+        const { normalizeStockRow } = require('../utils/excelParser');
+
         for (let i = 0; i < data.length; i++) {
             try {
-                const row = data[i];
-                const noPart = row['NO PART'] || row.NO_PART || row.no_part || '';
-                const namaPart = row['NAMA PART'] || row.NAMA_PART || row.nama_part || '';
-                const groupPart = String(row['GROUP PART'] || row.GROUP_PART || row.group_part || '').trim() || null;
-                const groupTobpm = String(row['GROUP TOBPM'] || row.GROUP_TOBPM || '').trim() || null;
-                const groupMaterial = String(row['GROUP MATERIAL'] || row.GROUP_MATERIAL || row.group_material || '').trim() || null;
-                const qty = parseInt(String(row.QTY || row.qty || 0).replace(/,/g, '')) || 0;
-                const amount = parseFloat(String(row.AMOUNT || row.amount || 0).replace(/,/g, '')) || 0;
+                const row = normalizeStockRow(data[i]);
+
+                // Keys are now UPPERCASE_WITH_UNDERSCORES from normalizeStockRow (e.g. NO_PART, GROUP_PART)
+                // Map common variations
+                const noPart = row.NO_PART || row.PART_NUMBER || row.NOMOR_PART || '';
+                const namaPart = row.NAMA_PART || row.PART_NAME || row.DESKRIPSI || '';
+                const groupPart = String(row.GROUP_PART || row.GROUP || '').trim() || null;
+                const groupTobpm = String(row.GROUP_TOBPM || row.TOBPM || '').trim() || null;
+                const groupMaterial = String(row.GROUP_MATERIAL || row.MATERIAL_GROUP || '').trim() || null;
+
+                // Qty and Amount
+                const qtyVal = row.QTY || row.QUANTITY || row.STOK || row.STOCK || 0;
+                const amountVal = row.AMOUNT || row.TOTAL_VALUE || row.PRICE || row.HARGA || 0;
+
+                const qty = parseInt(String(qtyVal).replace(/,/g, '')) || 0;
+                const amount = parseFloat(String(amountVal).replace(/,/g, '')) || 0;
 
                 if (!noPart) {
                     failedCount++;
@@ -1142,19 +1196,26 @@ const getPriceAnalytics = async (req, res, next) => {
             await pool.query('ALTER TABLE transaction_items ADD COLUMN IF NOT EXISTS diskon DECIMAL(15,2) DEFAULT 0');
         } catch (e) { /* ignore if exists/error */ }
 
-        // Shows Rank, Part No, Part Name, Discount % (Total Discount / Total Sales Revenue)
-        // Calculated from Price * Qty - Subtotal to capture item-level discounts even if diskon column is 0
+        // 3. Discount vs Profit Scatter Data (Top 50 Discounted Parts)
+        // Shows Part No, Name, Total Discount, Total Revenue, Disc%, GP%
         const topPartsQuery = `
             SELECT ti.no_part, ti.nama_part, 
                    SUM(ABS(ti.diskon)) as total_discount, 
                    SUM(ti.subtotal) as total_revenue,
                    CASE WHEN SUM(ti.subtotal + ABS(ti.diskon)) > 0 THEN 
                         (SUM(ABS(ti.diskon)) / SUM(ti.subtotal + ABS(ti.diskon))) * 100 
-                   ELSE 0 END as discount_percent
+                   ELSE 0 END as discount_percent,
+                   CASE WHEN SUM(ti.subtotal) > 0 THEN
+                        (SUM(ti.subtotal - (ti.qty * CASE 
+                            WHEN ti.cost_price > 0 THEN ti.cost_price 
+                            ELSE COALESCE(p.amount / NULLIF(p.qty, 0), 0) 
+                        END)) / SUM(ti.subtotal)) * 100
+                   ELSE 0 END as gp_percent
             FROM transaction_items ti
+            LEFT JOIN parts p ON ti.no_part = p.no_part
             WHERE ABS(ti.diskon) > 0
-            GROUP BY ti.no_part, ti.nama_part
-            ORDER BY total_discount DESC LIMIT 10
+            GROUP BY ti.no_part, ti.nama_part, p.amount, p.qty
+            ORDER BY total_discount DESC LIMIT 50
         `;
         const topPartsResults = await pool.query(topPartsQuery);
 
@@ -1309,13 +1370,17 @@ const recalculateFinancials = async (req, res, next) => {
         `);
 
         // 3. Update Gross Profit on Headers
-        // Need Cost. If we don't have historical cost, we rely on Master Part Cost (current).
-        // GP = Net Sales - (Qty * MasterCost)
-        // This is risky if cost changed. But it's the requested "recalculation".
+        // GP = Net Sales - (Qty * UnitCost)
+        // Priority: 1. Stored `cost_price` in transaction_items, 2. Master Part Cost (parts.amount / qty)
         await client.query(`
             UPDATE transactions t
             SET gross_profit = (
-                SELECT COALESCE(SUM(ti.subtotal - (ti.qty * COALESCE(p.amount / NULLIF(p.qty, 0), 0))), 0)
+                SELECT COALESCE(SUM(
+                    ti.subtotal - (ti.qty * CASE 
+                        WHEN ti.cost_price > 0 THEN ti.cost_price
+                        ELSE COALESCE(p.amount / NULLIF(p.qty, 0), 0)
+                    END)
+                ), 0)
                 FROM transaction_items ti
                 LEFT JOIN parts p ON ti.no_part = p.no_part
                 WHERE ti.transaction_id = t.id
