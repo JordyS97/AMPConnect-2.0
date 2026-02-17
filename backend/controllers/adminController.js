@@ -1337,7 +1337,7 @@ const getPriceAnalytics = async (req, res, next) => {
                     discount_percent: parseFloat(r.discount_percent)
                 })),
                 lists: {
-                    top_parts: [],
+                    top_parts: topParts.rows,
                     top_customers: topCustomers.rows.map(r => ({ ...r, total_discount: parseFloat(r.total_discount) }))
                 },
                 alerts: {
