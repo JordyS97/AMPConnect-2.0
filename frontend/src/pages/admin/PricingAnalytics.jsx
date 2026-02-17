@@ -311,6 +311,6 @@ export default function PricingAnalytics() {
                     </div>
                 </div>
             </div>
-        </div >
+        </div>
     );
 }
