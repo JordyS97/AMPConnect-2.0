@@ -234,9 +234,7 @@ export default function PricingAnalytics() {
                                         data: lists.top_parts.map(p => ({
                                             x: parseFloat(p.discount_percent),
                                             y: parseFloat(p.gp_percent),
-                                            name: p.nama_part,
-                                            no_part: p.no_part,
-                                            group_material: p.group_material // Pass through for tooltip
+                                            name: p.group_material
                                         })),
                                         backgroundColor: lists.top_parts.map(p => {
                                             // Color coding: High Disc + Low GP = Red (Bad)
@@ -269,8 +267,7 @@ export default function PricingAnalytics() {
                                             callbacks: {
                                                 label: (ctx) => {
                                                     const p = ctx.raw;
-                                                    const group = p.group_material ? ` [${p.group_material}]` : '';
-                                                    return `${p.name}${group} (${p.no_part}): Disc ${formatPercent(p.x)}, GP ${formatPercent(p.y)}`;
+                                                    return `${p.name}: Disc ${formatPercent(p.x)}, GP ${formatPercent(p.y)}`;
                                                 }
                                             }
                                         },
@@ -284,11 +281,7 @@ export default function PricingAnalytics() {
                             Dangerous (High Disc, Low GP)
                         </div>
                     </div>
-                    {/* DEBUG DATA DUMP */}
-                    <div style={{ marginTop: 20, padding: 10, background: '#f1f5f9', borderRadius: 4, fontSize: '0.75rem', overflow: 'auto' }}>
-                        <strong>Debug Data (First 2 Items):</strong>
-                        <pre>{JSON.stringify(lists.top_parts.slice(0, 2), null, 2)}</pre>
-                    </div>
+
                 </div>
 
 

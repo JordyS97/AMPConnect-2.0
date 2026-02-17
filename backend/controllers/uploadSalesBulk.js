@@ -99,7 +99,7 @@ async function bulkProcessSales(pool, invoiceGroups, invoices, customerMap, pars
             const q = parseNum(item.qty);
             const np = String(item.no_part || '').trim();
             const sales = parseNum(item.sales);
-            const gm = item.group_material || item.group_tobpm || item.group_part || '';
+            const gm = item.matgroup_fix || item.group_material || item.group_tobpm || item.group_part || '';
             const ns = parseNum(item.net_sales) || (tf - ppn);
             const gp = parseNum(item.gross_profit) || (tf - ppn - hp);
             allItemRows.push([transactionId, np, item.nama_part || '', q, sales, ns, Math.abs(parseNum(item.diskon)), hp, gp, gm]);
