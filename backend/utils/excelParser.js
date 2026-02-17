@@ -44,6 +44,17 @@ const SALES_COLUMN_MAP = {
     'Group Part': 'group_part',
     'Group TOBPM': 'group_tobpm',
     // Aliases for robust parsing
+    'Part Number': 'no_part',
+    'Part No': 'no_part',
+    'Material': 'no_part',
+    'Material Number': 'no_part',
+    'Part Name': 'nama_part',
+    'Description': 'nama_part',
+    'Material Description': 'nama_part',
+    'Material Group': 'group_material',
+    'Qty': 'qty',
+    'Amount': 'sales',
+    // Aliases for robust parsing
     'Discount': 'diskon',
     'Disc': 'diskon',
     'Potongan': 'diskon',

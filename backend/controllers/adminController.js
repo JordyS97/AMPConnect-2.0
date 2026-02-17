@@ -546,6 +546,15 @@ const uploadSales = async (req, res, next) => {
                 let netSales = 0;
                 let grossProfit = 0;
 
+                // Ensure columns exist (Lazy Migration) to prevent "column does not exist" errors
+                try {
+                    await pool.query('ALTER TABLE transaction_items ADD COLUMN IF NOT EXISTS diskon DECIMAL(15,2) DEFAULT 0');
+                    await pool.query('ALTER TABLE transaction_items ADD COLUMN IF NOT EXISTS cost_price DECIMAL(20,2) DEFAULT 0');
+                    await pool.query('ALTER TABLE transaction_items ADD COLUMN IF NOT EXISTS group_material VARCHAR(100)');
+                } catch (dbErr) {
+                    console.error('Auto-migration failed:', dbErr.message); // Non-fatal
+                }
+
                 for (const item of items) {
                     const itemTotalFaktur = parseNum(item.total_faktur);
                     totalFaktur += itemTotalFaktur;
@@ -559,8 +568,12 @@ const uploadSales = async (req, res, next) => {
                     // Priority: 1. CSV Harga Pokok, 2. Master Part Cost, 3. CSV Gross Profit, 4. 0
                     const hargaPokokCSV = parseNum(item.harga_pokok);
                     const qty = parseNum(item.qty);
-                    // Force Part Number to String for reliable lookup
+                    // Force Part Number to String and validate
                     const noPart = String(item.no_part || '').trim();
+                    if (!noPart) {
+                        throw new Error(`Part Number missing in row. Check "No Part" or "Part Number" column.`);
+                    }
+
                     const masterCost = partCosts[noPart] || 0;
 
                     let itemGrossProfit = 0;
@@ -573,10 +586,6 @@ const uploadSales = async (req, res, next) => {
                         itemGrossProfit = parseNum(item.gross_profit);
                     }
                     grossProfit += itemGrossProfit;
-
-                    // Add items for bulk insert later (optimized) - NO, we iterate and insert individually?
-                    // Wait, existing code uses bulk insert? NO, it inserts header then loop items? 
-                    // Let's check below.
                 }
 
                 // ... (existing header insert code) ...
@@ -770,7 +779,9 @@ const uploadSales = async (req, res, next) => {
 
         res.json({
             success: true,
-            message: `Data penjualan berhasil diproses. ${successCount} baris berhasil, ${failedCount} gagal.`,
+            message: failedCount > 0
+                ? `Proses selesai dengan error. ${successCount} berhasil, ${failedCount} gagal. Contoh Error: ${typeof errors[0] === 'string' ? errors[0] : (errors[0]?.error || JSON.stringify(errors[0]))}`
+                : `Data penjualan berhasil diproses. ${successCount} baris berhasil.`,
             data: { rows_processed: data.length, success_count: successCount, failed_count: failedCount, errors: errors.slice(0, 20) }
         });
     } catch (error) {
