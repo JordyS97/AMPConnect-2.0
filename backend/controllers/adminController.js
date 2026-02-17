@@ -632,6 +632,11 @@ const uploadSales = async (req, res, next) => {
                 // Delete existing items for this invoice to replace with new data (idempotent)
                 await pool.query('DELETE FROM transaction_items WHERE transaction_id = $1', [transactionId]);
 
+                // Batch insert all items for this invoice in ONE query
+                const itemValues = [];
+                const itemPlaceholders = [];
+                let pIdx = 1;
+
                 for (const item of items) {
                     const itemTotalFaktur = parseNum(item.total_faktur);
                     const itemNetSales = itemTotalFaktur / 1.11;
@@ -639,8 +644,6 @@ const uploadSales = async (req, res, next) => {
                     const qty = parseNum(item.qty);
                     const noPart = String(item.no_part || '').trim();
                     const masterCost = partCosts[noPart] || 0;
-
-                    // Capture Group Material (Priority: Group Material > Group TOBPM > Group Part)
                     const groupMaterial = item.group_material || item.group_tobpm || item.group_part || '';
 
                     let itemGrossProfit = 0;
@@ -652,28 +655,27 @@ const uploadSales = async (req, res, next) => {
                         itemGrossProfit = parseNum(item.gross_profit);
                     }
 
+                    itemPlaceholders.push(`($${pIdx}, $${pIdx + 1}, $${pIdx + 2}, $${pIdx + 3}, $${pIdx + 4}, $${pIdx + 5}, $${pIdx + 6}, $${pIdx + 7}, $${pIdx + 8}, $${pIdx + 9}, $${pIdx + 10})`);
+                    itemValues.push(
+                        transactionId, noFaktur, noPart, item.nama_part || '', qty,
+                        itemTotalFaktur, itemNetSales, parseNum(item.diskon),
+                        (hargaPokokCSV > 0 ? hargaPokokCSV : (masterCost * qty)),
+                        itemGrossProfit, groupMaterial
+                    );
+                    pIdx += 11;
+                }
+
+                if (itemPlaceholders.length > 0) {
                     await pool.query(
                         `INSERT INTO transaction_items (transaction_id, no_faktur, no_part, nama_part, qty, total_faktur, subtotal, diskon, cost_price, gross_profit, group_material)
-                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-                        [
-                            transactionId,
-                            noFaktur,
-                            noPart,
-                            item.nama_part,
-                            qty,
-                            itemTotalFaktur,
-                            itemNetSales, // subtotal is net sales per item effectively
-                            parseNum(item.diskon),
-                            (hargaPokokCSV > 0 ? hargaPokokCSV : (masterCost * qty)), // Store total cost for the line
-                            itemGrossProfit,
-                            groupMaterial
-                        ]
+                         VALUES ${itemPlaceholders.join(', ')}`,
+                        itemValues
                     );
                 }
 
                 successCount++;
             } catch (err) {
-                console.error(`Error processing invoice ${noFaktur}:`, err);
+                console.error(`Error processing invoice ${noFaktur}:`, err.message);
                 failedCount++;
                 errors.push(`Faktur ${noFaktur}: ${err.message}`);
             }
