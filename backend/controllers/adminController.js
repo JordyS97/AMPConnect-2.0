@@ -588,7 +588,13 @@ const uploadSales = async (req, res, next) => {
                     grossProfit += itemGrossProfit;
                 }
 
-                // ... (existing header insert code) ...
+                // Lookup customer ID from pre-cached map
+                const customerId = customerMap[noCustomer] || null;
+                if (customerId) affectedCustomerIds.add(customerId);
+
+                // Calculate GP% and Points
+                const gpPercent = netSales > 0 ? (grossProfit / netSales) * 100 : 0;
+                const pointsEarned = Math.floor(netSales / 10000); // 1 point per 10k net sales
 
                 const txRes = await pool.query(
                     `INSERT INTO transactions (no_faktur, tanggal, customer_id, no_customer, tipe_faktur, total_faktur, diskon, net_sales, gp_percent, gross_profit, points_earned)
