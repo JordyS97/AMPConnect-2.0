@@ -1416,15 +1416,41 @@ const recalculateFinancials = async (req, res, next) => {
     }
 };
 
-// Fix Database Schema (Manual Trigger)
+// Fix Database Schema & Debug
 const fixDatabase = async (req, res) => {
+    const client = await pool.connect();
     try {
-        await pool.query('ALTER TABLE transaction_items ADD COLUMN IF NOT EXISTS diskon DECIMAL(15,2) DEFAULT 0');
-        await pool.query('ALTER TABLE transaction_items ADD COLUMN IF NOT EXISTS cost_price DECIMAL(20,2) DEFAULT 0');
-        res.json({ success: true, message: 'Database schema repaired successfully.' });
+        await client.query('BEGIN');
+
+        // 1. Ensure Columns Exist
+        await client.query('ALTER TABLE transaction_items ADD COLUMN IF NOT EXISTS diskon DECIMAL(15,2) DEFAULT 0');
+        await client.query('ALTER TABLE transaction_items ADD COLUMN IF NOT EXISTS cost_price DECIMAL(20,2) DEFAULT 0');
+
+        // 2. Debug: Count items with discount
+        const countRes = await client.query('SELECT COUNT(*) as cnt FROM transaction_items WHERE diskon > 0');
+        const count = countRes.rows[0].cnt;
+
+        // 3. Debug: Sample one item
+        const sampleRes = await client.query('SELECT * FROM transaction_items WHERE diskon > 0 LIMIT 1');
+        const sample = sampleRes.rows[0];
+
+        // 4. Check Transactions with Discount
+        const txCountRes = await client.query('SELECT COUNT(*) as cnt FROM transactions WHERE diskon > 0');
+        const txCount = txCountRes.rows[0].cnt;
+
+        await client.query('COMMIT');
+
+        res.json({
+            success: true,
+            message: `Schema Fixed. Stats: ${count} Items with Discount. ${txCount} Transactions with Discount.`,
+            debug: { count, txCount, sample }
+        });
     } catch (error) {
+        await client.query('ROLLBACK');
         console.error('Fix DB Error:', error);
         res.status(500).json({ success: false, message: error.message });
+    } finally {
+        client.release();
     }
 };
 
