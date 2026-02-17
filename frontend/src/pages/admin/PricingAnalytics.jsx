@@ -10,6 +10,24 @@ export default function PricingAnalytics() {
     const [loading, setLoading] = useState(true);
     const { addToast } = useToast();
 
+    const handleFixDatabase = async () => {
+        if (!confirm('This will attempt to repair database schema. Continue?')) return;
+        try {
+            const token = localStorage.getItem('token');
+            const res = await api.post('/admin/fix-database', {}, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.data.success) {
+                addToast(res.data.message, 'success');
+                window.location.reload(); // Reload to refresh data
+            } else {
+                addToast(res.data.message || 'Failed to fix database', 'error');
+            }
+        } catch (error) {
+            addToast('Error connecting to server', 'error');
+        }
+    };
+
     useEffect(() => {
         const fetchAnalytics = async () => {
             try {
@@ -54,8 +72,26 @@ export default function PricingAnalytics() {
     return (
         <div className="analytics-page">
             <div className="page-header">
-                <h1>Analitik Harga & Diskon</h1>
-                <p>Evaluasi efektivitas diskon dan margin produk</p>
+                <div>
+                    <h1>Analitik Harga & Diskon</h1>
+                    <p>Evaluasi efektivitas diskon dan margin produk</p>
+                </div>
+                <button
+                    onClick={handleFixDatabase}
+                    style={{
+                        padding: '8px 16px',
+                        background: '#f59e0b',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: 6,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        cursor: 'pointer'
+                    }}
+                >
+                    <AlertTriangle size={16} /> Fix Database Schema
+                </button>
             </div>
 
             {/* KPI Cards */}

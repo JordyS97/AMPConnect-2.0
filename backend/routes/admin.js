@@ -107,6 +107,10 @@ const uploadQR = multer({
 router.post('/settings/qr', uploadLimiter, uploadQR.single('file'), require('../controllers/adminController').uploadSettingsQR);
 
 // Recalculate Financials
+// Recalculate Financials
 router.post('/recalculate', require('../controllers/adminController').recalculateFinancials);
+
+// Fix Database Schema
+router.post('/fix-database', require('../controllers/adminController').fixDatabase);
 
 module.exports = router;

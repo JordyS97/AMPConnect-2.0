@@ -65,7 +65,18 @@ const normalizeSalesRow = (row) => {
     for (const [key, value] of Object.entries(row)) {
         const trimmedKey = key.trim();
         const mappedKey = SALES_COLUMN_MAP[trimmedKey] || trimmedKey.toLowerCase().replace(/\s+/g, '_').replace(/%/g, '_percent');
-        normalized[mappedKey] = value;
+
+        // If key mapped, ensure we don't overwrite existing valid value with empty
+        // Use loose check for now or strict?
+        // Let's assume if we already have a value, and the new one is empty string/null, ignore new one.
+        const isEmpty = value === null || value === undefined || String(value).trim() === '';
+
+        if (normalized[mappedKey] !== undefined && !isEmpty) {
+            normalized[mappedKey] = value; // Overwrite if new has value
+        } else if (normalized[mappedKey] === undefined) {
+            normalized[mappedKey] = value; // Set if not exists
+        }
+        // If exists and new is empty, do nothing (keep old)
     }
     return normalized;
 };

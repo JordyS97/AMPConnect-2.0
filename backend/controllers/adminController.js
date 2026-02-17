@@ -615,6 +615,13 @@ const uploadSales = async (req, res, next) => {
                         const namaPart = item.nama_part || '';
                         const qty = parseNum(item.qty);
 
+                        // DEBUG: Trace Diskon Parsing
+                        const rawDiskon = item.diskon;
+                        const parsedDiskon = Math.abs(parseNum(item.diskon));
+                        if (parsedDiskon > 0 && idx === 1) { // Log first item of invoice if discount exists
+                            console.log(`[Upload] Invoice ${noFaktur}, Part ${noPart}, RawDiskon: '${rawDiskon}', Parsed: ${parsedDiskon}`);
+                        }
+
                         // FIX: Use Calculated Net Sales for Subtotal consistency
                         // const subtotal = parseNum(item.sales); 
                         const itemTotalFaktur = parseNum(item.total_faktur);
@@ -1409,10 +1416,22 @@ const recalculateFinancials = async (req, res, next) => {
     }
 };
 
+// Fix Database Schema (Manual Trigger)
+const fixDatabase = async (req, res) => {
+    try {
+        await pool.query('ALTER TABLE transaction_items ADD COLUMN IF NOT EXISTS diskon DECIMAL(15,2) DEFAULT 0');
+        await pool.query('ALTER TABLE transaction_items ADD COLUMN IF NOT EXISTS cost_price DECIMAL(20,2) DEFAULT 0');
+        res.json({ success: true, message: 'Database schema repaired successfully.' });
+    } catch (error) {
+        console.error('Fix DB Error:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
 module.exports = {
     getDashboard, getSales, getSaleDetail, getStock, adjustStock,
     uploadSales, uploadStock, getUploadHistory, downloadTemplate, generateReport,
     getCustomerAnalytics, getInventoryAnalytics, getSalesAnalytics, getPriceAnalytics,
-    uploadSettingsQR, recalculateFinancials
+    uploadSettingsQR, recalculateFinancials, fixDatabase
 };
 
