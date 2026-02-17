@@ -539,13 +539,33 @@ const uploadSales = async (req, res, next) => {
         } catch (dbErr) {
             console.error('Auto-migration failed:', dbErr.message);
         }
+        // Helper: Convert Excel serial date or text to ISO date string
+        const parseDate = (v) => {
+            if (!v) return null;
+            // If it's already a Date object
+            if (v instanceof Date) return v.toISOString().split('T')[0];
+            const s = String(v).trim();
+            if (!s) return null;
+            // Excel serial number (pure digits, typically 5 digits for modern dates)
+            if (/^\d{4,6}$/.test(s)) {
+                const serial = parseInt(s);
+                // Excel epoch: Jan 1, 1900 = serial 1 (with the off-by-one bug for Feb 29, 1900)
+                const excelEpoch = new Date(1899, 11, 30); // Dec 30, 1899
+                const date = new Date(excelEpoch.getTime() + serial * 86400000);
+                return date.toISOString().split('T')[0];
+            }
+            // Try parsing as regular date string
+            const parsed = new Date(s);
+            if (!isNaN(parsed.getTime())) return parsed.toISOString().split('T')[0];
+            return null;
+        };
 
         for (const noFaktur of invoices) {
             const items = invoiceGroups[noFaktur];
             const header = items[0]; // Take header info from first row
 
             try {
-                const tanggal = header.tanggal || null;
+                const tanggal = parseDate(header.tanggal);
                 const noCustomer = header.no_customer || '';
                 const tipeFaktur = header.tipe_faktur || 'Regular';
 
