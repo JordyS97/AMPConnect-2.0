@@ -1,7 +1,11 @@
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 const pool = require('../config/db');
 
 const applyIndices = async () => {
     console.log('🔌 Connecting to database...');
+    console.log('   DEBUG: DATABASE_URL is ' + (process.env.DATABASE_URL ? 'DEFINED' : 'UNDEFINED'));
+    if (process.env.DATABASE_URL) console.log('   DEBUG: Connection string starts with: ' + process.env.DATABASE_URL.substring(0, 15) + '...');
     try {
         const client = await pool.connect();
         console.log('✅ Connected. Applying indices...');
