@@ -71,19 +71,30 @@ const getOverviewMetrics = async (req, res, next) => {
 const getBuyingCycleAnalysis = async (req, res, next) => {
     try {
         const query = `
-            WITH user_cycles AS (
+            WITH active_customers AS (
+                -- Only analyze top 2000 customers by frequency in last 2 years to keep it fast
+                SELECT customer_id 
+                FROM transactions 
+                WHERE tanggal >= NOW() - INTERVAL '2 years'
+                GROUP BY customer_id 
+                HAVING COUNT(id) > 1
+                ORDER BY COUNT(id) DESC
+                LIMIT 2000
+            ),
+            user_cycles AS (
                  SELECT t.customer_id, c.name, MAX(t.tanggal) as last_purchase,
                  AVG(t.tanggal - prev_date) as avg_cycle
                  FROM (
                     SELECT customer_id, tanggal, LAG(tanggal) OVER (PARTITION BY customer_id ORDER BY tanggal) as prev_date
                     FROM transactions
-                    WHERE tanggal >= NOW() - INTERVAL '2 years' -- Optimization
+                    WHERE tanggal >= NOW() - INTERVAL '2 years'
+                    AND customer_id IN (SELECT customer_id FROM active_customers) -- Optimization: Join limited set
                  ) t
                  JOIN customers c ON t.customer_id = c.id
                  WHERE prev_date IS NOT NULL
                  GROUP BY t.customer_id, c.name
             )
-            SELECT * FROM user_cycles LIMIT 1000 -- Cap results
+            SELECT * FROM user_cycles LIMIT 1000
         `;
         const { rows } = await pool.query(query);
 
@@ -134,7 +145,7 @@ const getSeasonalityAnalysis = async (req, res, next) => {
             FROM transaction_items ti
             JOIN transactions t ON ti.transaction_id = t.id
             LEFT JOIN parts p ON ti.no_part = p.no_part
-            WHERE t.tanggal >= NOW() - INTERVAL '18 months' -- Reduced from 2 years
+            WHERE t.tanggal >= NOW() - INTERVAL '12 months' -- Reduced further to 1 year for speed
             GROUP BY 1, 2
             ORDER BY 1 ASC
         `;
@@ -188,6 +199,16 @@ const getSeasonalityAnalysis = async (req, res, next) => {
 const getCustomerDueTracking = async (req, res, next) => {
     try {
         const query = `
+            WITH active_customers AS (
+                -- Same logic: Focus on top 2000 active customers
+                SELECT customer_id 
+                FROM transactions 
+                WHERE tanggal >= NOW() - INTERVAL '18 months'
+                GROUP BY customer_id 
+                HAVING COUNT(id) > 1
+                ORDER BY COUNT(id) DESC
+                LIMIT 2000
+            ) 
             SELECT t.customer_id, COALESCE(c.name, t.no_customer) as name, 
                    MAX(t.tanggal) as last_purchase,
                    MAX(t.net_sales) as last_value,
@@ -195,7 +216,8 @@ const getCustomerDueTracking = async (req, res, next) => {
             FROM (
                 SELECT customer_id, no_customer, net_sales, tanggal, LAG(tanggal) OVER (PARTITION BY customer_id ORDER BY tanggal) as prev_date
                 FROM transactions
-                WHERE tanggal >= NOW() - INTERVAL '18 months' -- Optimization
+                WHERE tanggal >= NOW() - INTERVAL '18 months'
+                AND customer_id IN (SELECT customer_id FROM active_customers)
             ) t
             LEFT JOIN customers c ON t.customer_id = c.id
             WHERE prev_date IS NOT NULL
