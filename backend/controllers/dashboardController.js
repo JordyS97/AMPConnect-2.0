@@ -10,11 +10,13 @@ const daysBetween = (d1, d2) => {
 const getCustomerLifecycle = async (req, res, next) => {
     try {
         // Fetch all transactions sorted by customer and date
+        // Use LEFT JOIN to include transactions even if customer record is missing details (unlikely but safe)
         const query = `
-            SELECT t.customer_id, c.name as customer_name, c.phone, t.tanggal, t.net_sales,
+            SELECT t.customer_id, COALESCE(c.name, t.no_customer) as customer_name, c.phone, t.tanggal, t.net_sales,
                    t.id as transaction_id
             FROM transactions t
-            JOIN customers c ON t.customer_id = c.id
+            LEFT JOIN customers c ON t.customer_id = c.id
+            WHERE t.customer_id IS NOT NULL
             ORDER BY t.customer_id, t.tanggal ASC
         `;
         const { rows } = await pool.query(query);
@@ -48,7 +50,13 @@ const getCustomerLifecycle = async (req, res, next) => {
             const cust = customers[custId];
             const txs = cust.transactions;
 
-            if (txs.length < 2) continue; // Need at least 2 transactions to calculate cycle
+            // Allow single transaction customers to appear in list (as "New" or "Undefined Cycle")
+            // Logic: If only 1 tx, we can't calc avg cycle, but we can set a default or ignore.
+            // Requirement says "Calculate avg buying cycle", so we need 2 dates.
+            // If < 2, maybe we don't predict yet or use global average?
+            // For now, adhere to existing logic but ensure strictly valid dates.
+
+            if (txs.length < 2) continue;
 
             // Calculate intervals
             for (let i = 1; i < txs.length; i++) {
@@ -63,8 +71,8 @@ const getCustomerLifecycle = async (req, res, next) => {
             // We interpret "Next Expected Purchase" as roughly Avg Cycle days from last purchase
             // But the "Follow-up" trigger is at 80% of that cycle.
 
-            const nextExpectedDays = avgCycle; // Full cycle
-            const followUpDays = avgCycle * 0.8; // Trigger point
+            const nextExpectedDays = avgCycle;
+            const followUpDays = avgCycle * 0.8;
 
             const nextExpectedDate = new Date(lastPurchaseDate);
             nextExpectedDate.setDate(lastPurchaseDate.getDate() + nextExpectedDays);
@@ -77,7 +85,7 @@ const getCustomerLifecycle = async (req, res, next) => {
             // Status Logic
             let status = 'Normal';
             if (daysUntilDue < 0) status = 'Overdue';
-            else if (daysUntilDue <= 7) status = 'Due Soon'; // Arbitrary 7 days warning
+            else if (daysUntilDue <= 7) status = 'Due Soon';
 
             const data = {
                 customer_id: cust.id,
@@ -122,16 +130,18 @@ const getCustomerLifecycle = async (req, res, next) => {
 const getSeasonality = async (req, res, next) => {
     try {
         // Aggregate quantity sold by month and category (group_tobpm)
+        // Widen date range to 5 years to catch historical data
+        // Use LEFT JOIN parts to include items even if not in part master (or missing group)
         const query = `
             SELECT 
                 TO_CHAR(t.tanggal, 'YYYY-MM') as month_year,
                 EXTRACT(MONTH FROM t.tanggal) as month,
-                COALESCE(p.group_tobpm, 'Other') as category,
+                COALESCE(NULLIF(p.group_tobpm, ''), 'Uncategorized') as category,
                 SUM(ti.qty) as total_qty
             FROM transaction_items ti
             JOIN transactions t ON ti.transaction_id = t.id
-            JOIN parts p ON ti.no_part = p.no_part
-            WHERE t.tanggal >= NOW() - INTERVAL '12 months'
+            LEFT JOIN parts p ON ti.no_part = p.no_part
+            WHERE t.tanggal >= NOW() - INTERVAL '5 years'
             GROUP BY 1, 2, 3
             ORDER BY 1 ASC
         `;
@@ -150,13 +160,13 @@ const getSeasonality = async (req, res, next) => {
             months.add(m);
 
             if (!heatmapData[cat]) heatmapData[cat] = {};
-            heatmapData[cat][m] = parseInt(row.total_qty);
+            heatmapData[cat][m] = (heatmapData[cat][m] || 0) + parseInt(row.total_qty);
         });
 
         // Determine "Most Seasonal Category" (highest variance or simple highest peak)
         // Simple approach: Category with highest single-month sales
         let maxQty = 0;
-        let seasonalCategory = 'N/A';
+        let seasonalCategory = '-';
 
         for (const cat in heatmapData) {
             for (const m in heatmapData[cat]) {
@@ -184,9 +194,9 @@ const getSeasonality = async (req, res, next) => {
 // 3. Cross-Sell & Recommendations
 const getRecommendations = async (req, res, next) => {
     try {
-        // A. Frequent Pairs (Global)
+        // Increase limit and date range
         const pairsQuery = `
-            WITH recent_trans AS (SELECT id FROM transactions ORDER BY tanggal DESC LIMIT 1000)
+            WITH recent_trans AS (SELECT id FROM transactions ORDER BY tanggal DESC LIMIT 5000)
             SELECT t1.no_part as part_a, t1.nama_part as name_a, 
                    t2.no_part as part_b, t2.nama_part as name_b, 
                    COUNT(*) as frequency
@@ -219,25 +229,26 @@ const getRecommendations = async (req, res, next) => {
 // 4. Discount Optimization
 const getDiscountAnalysis = async (req, res, next) => {
     try {
-        // Compare discount % vs repeat purchase behavior (Total transactions per customer)
+        // Compare discount % vs repeat purchase behavior
+        // Show even if only 1 transaction to visualize "One-time buyers"
         const query = `
             SELECT 
                 c.id, 
-                AVG(CASE WHEN t.total_faktur > 0 THEN (t.diskon / t.total_faktur) * 100 ELSE 0 END) as avg_discount_percent,
+                AVG(CASE WHEN t.total_faktur > 0 THEN (ABS(t.diskon) / t.total_faktur) * 100 ELSE 0 END) as avg_discount_percent,
                 COUNT(t.id) as transaction_count,
                 AVG(t.gp_percent) as avg_gp_percent
             FROM transactions t
             JOIN customers c ON t.customer_id = c.id
             GROUP BY c.id
-            HAVING COUNT(t.id) > 1
+            HAVING COUNT(t.id) > 0
             LIMIT 500
         `;
         const { rows } = await pool.query(query);
 
         const scatterData = rows.map(row => ({
-            x: parseFloat(row.avg_discount_percent).toFixed(2), // Discount
-            y: parseInt(row.transaction_count),                 // Repeat purchases
-            r: parseFloat(row.avg_gp_percent)                   // Radius/Color could be GP
+            x: parseFloat(row.avg_discount_percent).toFixed(2),
+            y: parseInt(row.transaction_count),
+            r: Math.max(2, Math.min(parseFloat(row.avg_gp_percent) / 2, 10)) // Scale radius
         }));
 
         res.json({
