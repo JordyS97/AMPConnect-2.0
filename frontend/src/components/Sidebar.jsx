@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import {
     LayoutDashboard, Package, Star, TrendingUp, CreditCard, User, LogOut, Menu, X,
     BarChart3, Upload, Users, FileText, Settings, ShoppingCart, Layers, Percent,
-    Clock, Gift, Heart
+    Clock, Gift, Heart, Calendar
 } from 'lucide-react';
 
 const customerLinks = [
@@ -22,6 +22,7 @@ const customerLinks = [
 const adminLinks = [
     { path: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { path: '/admin/sales', label: 'Analitik Penjualan', icon: BarChart3 },
+    { path: '/admin/seasonality', label: 'Seasonal Insight', icon: Calendar }, // Added
     { path: '/admin/stock', label: 'Manajemen Stok', icon: Package },
     { path: '/admin/upload', label: 'Upload Data', icon: Upload },
     { path: '/admin/users', label: 'Manajemen User', icon: Users },
