@@ -20,107 +20,100 @@ const DashboardAnalytics = () => {
         const fetchData = async () => {
             try {
                 // Parallel fetch
-                const [lifecycleRes, seasonalityRes, discountRes] = await Promise.all([
-                    axios.get('/api/dashboard/lifecycle'),
-                    axios.get('/api/dashboard/seasonality'),
-                    axios.get('/api/dashboard/discounts')
-                ]);
+                fetchAllData();
+            }, []);
 
-                setLifecycleData(lifecycleRes.data.data);
-                setSeasonalityData(seasonalityRes.data.data);
+    const fetchAllData = async () => {
+        try {
+            setLoading(true);
+            const endpoints = [
+                axios.get('http://localhost:5000/api/dashboard/overview'),
+                axios.get('http://localhost:5000/api/dashboard/buying-cycle'),
+                axios.get('http://localhost:5000/api/dashboard/seasonality'),
+                axios.get('http://localhost:5000/api/dashboard/due-tracking'),
+                axios.get('http://localhost:5000/api/dashboard/product-cycles'),
+                axios.get('http://localhost:5000/api/dashboard/predictive'),
+                axios.get('http://localhost:5000/api/dashboard/cohorts'),
+                axios.get('http://localhost:5000/api/dashboard/rfm')
+            ];
 
-                // Transform discount data for scatter plot
-                // API return array of { x, y, r } but ChartJS format is [{x,y}]
-                // We will use bubble/scatter
-                setDiscountData(discountRes.data.data);
+            const [
+                overviewRes,
+                cycleRes,
+                seasonRes,
+                dueRes,
+                prodRes,
+                predRes,
+                cohortRes,
+                rfmRes
+            ] = await Promise.all(endpoints);
 
-                setLoading(false);
-            } catch (err) {
-                console.error("Failed to fetch dashboard data:", err);
-                setError("Failed to load analytics data. Ensure backend is running.");
-                setLoading(false);
-            }
-        };
+            setData({
+                overview: overviewRes.data.data,
+                buyingCycle: cycleRes.data.data,
+                seasonality: seasonRes.data.data,
+                dueTracking: dueRes.data.data,
+                productCycles: prodRes.data.data,
+                predictive: predRes.data.data,
+                cohorts: cohortRes.data.data,
+                rfm: rfmRes.data.data
+            });
 
-        fetchData();
-
-        // Auto refresh every 5 mins
-        const interval = setInterval(fetchData, 300000);
-        return () => clearInterval(interval);
-    }, []);
-
-    if (loading) return <div className="p-8 text-center">Loading Analytics Dashboard...</div>;
-    if (error) return <div className="p-8 text-center text-red-500">{error}</div>;
-
-    // Prepare Scatter Data
-    const scatterChartData = {
-        datasets: [{
-            label: 'Discount vs Repeat Purchase',
-            data: discountData, // {x: discount%, y: trans_count}
-            backgroundColor: 'rgba(255, 99, 132, 0.6)',
-        }]
-    };
-
-    const scatterOptions = {
-        scales: {
-            x: { title: { display: true, text: 'Avg Discount (%)' }, beginAtZero: true },
-            y: { title: { display: true, text: 'Transaction Count' }, beginAtZero: true }
-        },
-        plugins: {
-            tooltip: {
-                callbacks: {
-                    label: (ctx) => `Disc: ${ctx.parsed.x}%, Txs: ${ctx.parsed.y}`
-                }
-            }
+        } catch (error) {
+            console.error("Error fetching dashboard data:", error);
+        } finally {
+            setLoading(false);
         }
     };
 
+    if (loading) {
+        return <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+            <div className="text-xl font-semibold text-gray-500 animate-pulse">Loading Analytics Intelligence...</div>
+        </div>;
+    }
+
     return (
-        <div className="p-6 bg-gray-50 min-h-screen">
-            <h1 className="text-2xl font-bold text-gray-800 mb-6">Seasonal & Buying Cycle Intelligence</h1>
+        <div className="min-h-screen bg-gray-50 p-6">
+            <div className="max-w-7xl mx-auto">
+                <div className="mb-8">
+                    <h1 className="text-2xl font-bold text-gray-900">Seasonal & Buying Cycle Intelligence</h1>
+                    <p className="text-gray-500">Advanced analytics for retention, seasonality, and inventory forecasting.</p>
+                </div>
 
-            {/* KPI Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                <div className="bg-white p-6 rounded-lg shadow">
-                    <h3 className="text-gray-500 text-sm font-medium">Avg Buying Cycle</h3>
-                    <div className="text-3xl font-bold text-blue-600">{lifecycleData?.summary?.avg_cycle_all || 0} <span className="text-sm text-gray-400 font-normal">days</span></div>
-                </div>
-                <div className="bg-white p-6 rounded-lg shadow">
-                    <h3 className="text-gray-500 text-sm font-medium">Customers Due This Week</h3>
-                    <div className="text-3xl font-bold text-yellow-600">{lifecycleData?.summary?.customers_due_this_week || 0}</div>
-                    <div className="text-xs text-red-500 mt-1">{lifecycleData?.summary?.overdue_count} Overdue</div>
-                </div>
-                <div className="bg-white p-6 rounded-lg shadow">
-                    <h3 className="text-gray-500 text-sm font-medium">Most Seasonal Category</h3>
-                    <div className="text-xl font-bold text-green-600 truncate">{seasonalityData?.most_seasonal || '-'}</div>
-                </div>
-            </div>
+                {/* 1. Overview KPIs */}
+                <DashboardKPIs data={data.overview} />
 
-            {/* Row 1: Heatmap & Line */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-                <div className="bg-white p-4 rounded-lg shadow">
-                    <h3 className="text-lg font-semibold mb-4">Seasonality Heatmap</h3>
-                    <SeasonalityHeatmap data={seasonalityData?.heatmap} />
-                </div>
-                <div className="bg-white p-4 rounded-lg shadow">
-                    <h3 className="text-lg font-semibold mb-4">Discount Efficiency</h3>
-                    <div className="h-64">
-                        <Scatter data={scatterChartData} options={scatterOptions} />
+                {/* 2. Buying Cycle Analysis */}
+                <BuyingCycleSection data={data.buyingCycle} />
+
+                {/* 3. Seasonality */}
+                <SeasonalitySection data={data.seasonality} />
+
+                <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+                    {/* Left Column (2/3) */}
+                    <div className="xl:col-span-2">
+                        {/* 4. Due Tracking */}
+                        <CustomerDueSection data={data.dueTracking} />
+
+                        {/* 6. Predictive Analytics */}
+                        <PredictiveSection data={data.predictive} />
+
+                        {/* 8. Cohort Analysis */}
+                        <CohortAnalysis data={data.cohorts} />
+                    </div>
+
+                    {/* Right Column (1/3) */}
+                    <div>
+                        {/* 10. Action Plan (Priority List) */}
+                        <ActionPlan />
+
+                        {/* 9. RFM Segmentation */}
+                        <RFMSegmentation data={data.rfm} />
+
+                        {/* 5. Product Cycles */}
+                        <ProductCycleTable data={data.productCycles} />
                     </div>
                 </div>
-            </div>
-
-            {/* Row 2: Histogram */}
-            <div className="bg-white p-4 rounded-lg shadow mb-6">
-                <div className="h-64">
-                    <BuyingCycleChart lifecycleData={lifecycleData?.lifecycle || []} />
-                </div>
-            </div>
-
-            {/* Bottom: Recommendations */}
-            <div className="bg-white p-4 rounded-lg shadow">
-                <h3 className="text-lg font-semibold mb-4">Follow-Up Action Plan</h3>
-                <RecommendationTable data={lifecycleData?.follow_up} />
             </div>
         </div>
     );
