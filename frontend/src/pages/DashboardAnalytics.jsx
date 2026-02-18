@@ -26,60 +26,44 @@ const DashboardAnalytics = () => {
     });
 
     useEffect(() => {
-        fetchAllData();
+        // Fetch each section independently to avoid blocking the whole UI
+        const loadData = () => {
+            // 1. Overview
+            fetchSection('overview', 'overview');
+            // 2. Buying Cycle
+            fetchSection('buying-cycle', 'buyingCycle');
+            // 3. Seasonality
+            fetchSection('seasonality', 'seasonality');
+            // 4. Due Tracking
+            fetchSection('due-tracking', 'dueTracking');
+            // 5. Product Cycles
+            fetchSection('product-cycles', 'productCycles');
+            // 6. Predictive
+            fetchSection('predictive', 'predictive');
+            // 7. Cohorts
+            fetchSection('cohorts', 'cohorts');
+            // 8. RFM
+            fetchSection('rfm', 'rfm');
+            // 9. Discounts
+            fetchSection('discounts', 'discounts');
+        };
+
+        loadData();
     }, []);
 
-    const fetchAllData = async () => {
+    const fetchSection = async (endpoint, key) => {
         try {
-            setLoading(true);
-            const endpoints = [
-                axios.get('http://localhost:5000/api/dashboard/overview'),
-                axios.get('http://localhost:5000/api/dashboard/buying-cycle'),
-                axios.get('http://localhost:5000/api/dashboard/seasonality'),
-                axios.get('http://localhost:5000/api/dashboard/due-tracking'),
-                axios.get('http://localhost:5000/api/dashboard/product-cycles'),
-                axios.get('http://localhost:5000/api/dashboard/predictive'),
-                axios.get('http://localhost:5000/api/dashboard/cohorts'),
-                axios.get('http://localhost:5000/api/dashboard/rfm'),
-                axios.get('http://localhost:5000/api/dashboard/discounts')
-            ];
-
-            const [
-                overviewRes,
-                cycleRes,
-                seasonRes,
-                dueRes,
-                prodRes,
-                predRes,
-                cohortRes,
-                rfmRes,
-                discRes
-            ] = await Promise.all(endpoints);
-
-            setData({
-                overview: overviewRes.data.data,
-                buyingCycle: cycleRes.data.data,
-                seasonality: seasonRes.data.data,
-                dueTracking: dueRes.data.data,
-                productCycles: prodRes.data.data,
-                predictive: predRes.data.data,
-                cohorts: cohortRes.data.data,
-                rfm: rfmRes.data.data,
-                discounts: discRes.data.data
-            });
-
+            const res = await axios.get(`http://localhost:5000/api/dashboard/${endpoint}`);
+            setData(prev => ({ ...prev, [key]: res.data.data }));
         } catch (error) {
-            console.error("Error fetching dashboard data:", error);
-        } finally {
-            setLoading(false);
+            console.error(`Error fetching ${key}:`, error);
         }
     };
 
-    if (loading) {
-        return <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-            <div className="text-xl font-semibold text-gray-500 animate-pulse">Loading Analytics Intelligence...</div>
-        </div>;
-    }
+    // Check if at least overview is loaded to show the main structure, 
+    // but we want to render immediately so individual components can show their loading states.
+    // So we effectively remove the global loading check.
+
 
     return (
         <div className="min-h-screen bg-gray-50 p-6">
