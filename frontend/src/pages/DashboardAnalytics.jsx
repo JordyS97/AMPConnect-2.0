@@ -1,27 +1,33 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import BuyingCycleChart from '../components/BuyingCycleChart';
-import SeasonalityHeatmap from '../components/SeasonalityHeatmap';
-import RecommendationTable from '../components/RecommendationTable';
-import { Chart as ChartJS, registerables } from 'chart.js';
-import { Scatter } from 'react-chartjs-2';
-
-ChartJS.register(...registerables);
+import DashboardKPIs from '../components/DashboardKPIs';
+import BuyingCycleSection from '../components/BuyingCycleSection';
+import SeasonalitySection from '../components/SeasonalitySection';
+import CustomerDueSection from '../components/CustomerDueSection';
+import ProductCycleTable from '../components/ProductCycleTable';
+import PredictiveSection from '../components/PredictiveSection';
+import CohortAnalysis from '../components/CohortAnalysis';
+import RFMSegmentation from '../components/RFMSegmentation';
+import ActionPlan from '../components/ActionPlan';
+import DiscountEfficiency from '../components/DiscountEfficiency';
 
 const DashboardAnalytics = () => {
-    const [lifecycleData, setLifecycleData] = useState(null);
-    const [seasonalityData, setSeasonalityData] = useState(null);
-    const [discountData, setDiscountData] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
+    const [data, setData] = useState({
+        overview: null,
+        buyingCycle: null,
+        seasonality: null,
+        dueTracking: null,
+        productCycles: null,
+        predictive: null,
+        cohorts: null,
+        rfm: null,
+        discounts: null
+    });
 
-    // Fetch data
     useEffect(() => {
-        const fetchData = async () => {
-            try {
-                // Parallel fetch
-                fetchAllData();
-            }, []);
+        fetchAllData();
+    }, []);
 
     const fetchAllData = async () => {
         try {
@@ -34,7 +40,8 @@ const DashboardAnalytics = () => {
                 axios.get('http://localhost:5000/api/dashboard/product-cycles'),
                 axios.get('http://localhost:5000/api/dashboard/predictive'),
                 axios.get('http://localhost:5000/api/dashboard/cohorts'),
-                axios.get('http://localhost:5000/api/dashboard/rfm')
+                axios.get('http://localhost:5000/api/dashboard/rfm'),
+                axios.get('http://localhost:5000/api/dashboard/discounts')
             ];
 
             const [
@@ -45,7 +52,8 @@ const DashboardAnalytics = () => {
                 prodRes,
                 predRes,
                 cohortRes,
-                rfmRes
+                rfmRes,
+                discRes
             ] = await Promise.all(endpoints);
 
             setData({
@@ -56,7 +64,8 @@ const DashboardAnalytics = () => {
                 productCycles: prodRes.data.data,
                 predictive: predRes.data.data,
                 cohorts: cohortRes.data.data,
-                rfm: rfmRes.data.data
+                rfm: rfmRes.data.data,
+                discounts: discRes.data.data
             });
 
         } catch (error) {
@@ -109,6 +118,9 @@ const DashboardAnalytics = () => {
 
                         {/* 9. RFM Segmentation */}
                         <RFMSegmentation data={data.rfm} />
+
+                        {/* 7. Discount Efficiency */}
+                        <DiscountEfficiency data={data.discounts} />
 
                         {/* 5. Product Cycles */}
                         <ProductCycleTable data={data.productCycles} />
