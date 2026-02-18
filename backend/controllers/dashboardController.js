@@ -7,15 +7,15 @@ const daysBetween = (d1, d2) => {
 };
 
 // 1. OVERVIEW METRICS (Hero Section)
+// 1. OVERVIEW METRICS (Hero Section)
 const getOverviewMetrics = async (req, res, next) => {
     try {
-        // A. Avg Buying Cycle & Active Patterns
-        // (Simplified calculation for speed - avg of last 2 transactions for all customers)
+        // A. Avg Buying Cycle & Active Patterns (Last 2 Years)
         const cycleQuery = `
             WITH intervals AS (
                 SELECT t.customer_id, t.tanggal - LAG(t.tanggal) OVER (PARTITION BY t.customer_id ORDER BY t.tanggal) as days_diff
                 FROM transactions t
-                JOIN customers c ON t.customer_id = c.id
+                WHERE t.tanggal >= NOW() - INTERVAL '2 years' -- Optimization
             )
             SELECT AVG(days_diff) as avg_cycle, COUNT(DISTINCT customer_id) as active_patterns
             FROM intervals
@@ -23,37 +23,26 @@ const getOverviewMetrics = async (req, res, next) => {
         `;
         const cycleRes = await pool.query(cycleQuery);
 
-        // B. Repeat Purchase Rate (Customers > 1 purchase / Total Customers)
+        // B. Repeat Purchase Rate (Last 2 Years)
         const repeatQuery = `
             SELECT 
                 COUNT(DISTINCT CASE WHEN tx_count > 1 THEN customer_id END)::FLOAT / NULLIF(COUNT(DISTINCT customer_id), 0) * 100 as repeat_rate
             FROM (
                 SELECT customer_id, COUNT(id) as tx_count 
                 FROM transactions 
+                WHERE tanggal >= NOW() - INTERVAL '2 years' -- Optimization
                 GROUP BY customer_id
             ) sub
         `;
         const repeatRes = await pool.query(repeatQuery);
 
-        // C. Revenue at Risk (Overdue Customers) & Customers Due This Week
-        // Uses a simplified overdue logic (last purchase > 90 days ago) for 'At Risk' usually, 
-        // but here we align with "Overdue" status from lifecycle logic.
-        // We'll calculate "Due This Week" on the fly.
-
-        // Fetch last purchase per customer
-        const dueQuery = `
-            SELECT t.customer_id, t.net_sales, MAX(t.tanggal) as last_purchase
-            FROM transactions t
-            GROUP BY t.customer_id, t.net_sales
-        `;
-        // Note: The above query is slightly approximated for revenue at risk (uses last tx value). 
-        // A better query deals with aggregation properly.
-
+        // C. Revenue at Risk (Last 2 Years activity)
         const riskQuery = `
             WITH last_tx AS (
                 SELECT customer_id, MAX(tanggal) as last_date, 
-                (SELECT net_sales FROM transactions t2 WHERE t2.customer_id = t1.customer_id ORDER BY tanggal DESC LIMIT 1) as last_value
-                FROM transactions t1
+                MAX(net_sales) as last_value -- Approx for speed vs subquery
+                FROM transactions
+                WHERE tanggal >= NOW() - INTERVAL '2 years' -- Optimization
                 GROUP BY customer_id
             )
             SELECT 
@@ -81,7 +70,6 @@ const getOverviewMetrics = async (req, res, next) => {
 // 2. BUYING CYCLE ANALYSIS
 const getBuyingCycleAnalysis = async (req, res, next) => {
     try {
-        // Fetch simplified cycle data
         const query = `
             WITH user_cycles AS (
                  SELECT t.customer_id, c.name, MAX(t.tanggal) as last_purchase,
@@ -89,16 +77,16 @@ const getBuyingCycleAnalysis = async (req, res, next) => {
                  FROM (
                     SELECT customer_id, tanggal, LAG(tanggal) OVER (PARTITION BY customer_id ORDER BY tanggal) as prev_date
                     FROM transactions
+                    WHERE tanggal >= NOW() - INTERVAL '2 years' -- Optimization
                  ) t
                  JOIN customers c ON t.customer_id = c.id
                  WHERE prev_date IS NOT NULL
                  GROUP BY t.customer_id, c.name
             )
-            SELECT * FROM user_cycles
+            SELECT * FROM user_cycles LIMIT 1000 -- Cap results
         `;
         const { rows } = await pool.query(query);
 
-        // Process buckets
         const distribution = {
             '0-7 days': 0, '8-14 days': 0, '15-30 days': 0, '31-45 days': 0,
             '46-60 days': 0, '60-90 days': 0, '90+ days': 0
@@ -114,7 +102,6 @@ const getBuyingCycleAnalysis = async (req, res, next) => {
             else if (cycle <= 90) distribution['60-90 days']++;
             else distribution['90+ days']++;
 
-            // Predict next date
             const nextDate = new Date(r.last_purchase);
             nextDate.setDate(nextDate.getDate() + cycle);
 
@@ -123,16 +110,13 @@ const getBuyingCycleAnalysis = async (req, res, next) => {
                 avg_cycle: cycle,
                 last_purchase: r.last_purchase,
                 next_due: nextDate,
-                confidence: cycle < 30 ? 'High' : (cycle < 60 ? 'Medium' : 'Low') // Simple heuristic
+                confidence: cycle < 30 ? 'High' : (cycle < 60 ? 'Medium' : 'Low')
             };
-        }).sort((a, b) => a.next_due - b.next_due).slice(0, 50); // Top 50 predictable
+        }).sort((a, b) => a.next_due - b.next_due).slice(0, 50);
 
         res.json({
             success: true,
-            data: {
-                patterns,
-                distribution
-            }
+            data: { patterns, distribution }
         });
     } catch (error) {
         next(error);
@@ -142,7 +126,6 @@ const getBuyingCycleAnalysis = async (req, res, next) => {
 // 3. SEASONALITY ANALYSIS
 const getSeasonalityAnalysis = async (req, res, next) => {
     try {
-        // Heatmap Logic (Existing but enhanced)
         const query = `
             SELECT 
                 EXTRACT(MONTH FROM t.tanggal) as month,
@@ -151,7 +134,7 @@ const getSeasonalityAnalysis = async (req, res, next) => {
             FROM transaction_items ti
             JOIN transactions t ON ti.transaction_id = t.id
             LEFT JOIN parts p ON ti.no_part = p.no_part
-            WHERE t.tanggal >= NOW() - INTERVAL '2 years'
+            WHERE t.tanggal >= NOW() - INTERVAL '18 months' -- Reduced from 2 years
             GROUP BY 1, 2
             ORDER BY 1 ASC
         `;
@@ -169,7 +152,6 @@ const getSeasonalityAnalysis = async (req, res, next) => {
             categoryTotals[cat] = (categoryTotals[cat] || 0) + parseInt(r.total_qty);
         });
 
-        // Calculate Seasonal Index (Monthly Qty / Avg Monthly Qty)
         const seasonalIndex = [];
         for (const cat in heatmap) {
             const avgMonthly = categoryTotals[cat] / 12;
@@ -185,13 +167,13 @@ const getSeasonalityAnalysis = async (req, res, next) => {
 
             seasonalIndex.push({
                 category: cat,
-                index: (varianceSum / categoryTotals[cat]).toFixed(2), // Normalized variance score
+                index: (varianceSum / (categoryTotals[cat] || 1)).toFixed(2),
                 peak_month: peakMonth,
                 avg_monthly: Math.round(avgMonthly)
             });
         }
 
-        seasonalIndex.sort((a, b) => b.index - a.index); // Most seasonal first
+        seasonalIndex.sort((a, b) => b.index - a.index);
 
         res.json({
             success: true,
@@ -205,19 +187,19 @@ const getSeasonalityAnalysis = async (req, res, next) => {
 // 4. CUSTOMER DUE TRACKING
 const getCustomerDueTracking = async (req, res, next) => {
     try {
-        // Re-use lifecycle logic but focus on lists
         const query = `
             SELECT t.customer_id, COALESCE(c.name, t.no_customer) as name, 
                    MAX(t.tanggal) as last_purchase,
-                   (SELECT net_sales FROM transactions t2 WHERE t2.customer_id = t.customer_id ORDER BY tanggal DESC LIMIT 1) as last_value,
+                   MAX(t.net_sales) as last_value,
                    AVG(t.tanggal - prev_date) as avg_cycle
             FROM (
-                SELECT customer_id, tanggal, LAG(tanggal) OVER (PARTITION BY customer_id ORDER BY tanggal) as prev_date
+                SELECT customer_id, no_customer, net_sales, tanggal, LAG(tanggal) OVER (PARTITION BY customer_id ORDER BY tanggal) as prev_date
                 FROM transactions
+                WHERE tanggal >= NOW() - INTERVAL '18 months' -- Optimization
             ) t
             LEFT JOIN customers c ON t.customer_id = c.id
             WHERE prev_date IS NOT NULL
-            GROUP BY t.customer_id, c.name
+            GROUP BY t.customer_id, c.name, t.no_customer
         `;
         const { rows } = await pool.query(query);
 
@@ -228,13 +210,7 @@ const getCustomerDueTracking = async (req, res, next) => {
         rows.forEach(r => {
             const cycle = r.avg_cycle;
             const last = new Date(r.last_purchase);
-
-            // Follow up logic: 80% of cycle
-            const followUpDays = cycle * 0.8;
             const expectedDays = cycle;
-
-            const followUpDate = new Date(last);
-            followUpDate.setDate(last.getDate() + followUpDays);
 
             const expectedDate = new Date(last);
             expectedDate.setDate(last.getDate() + expectedDays);
@@ -251,9 +227,9 @@ const getCustomerDueTracking = async (req, res, next) => {
 
             if (daysUntilDue >= 0 && daysUntilDue <= 7) {
                 dueThisWeek.push(item);
-            } else if (daysUntilDue < -7) { // Overdue by week+
+            } else if (daysUntilDue < -7) {
                 item.overdue_days = Math.abs(daysUntilDue);
-                item.risk_amount = item.last_value; // Simple risk calc
+                item.risk_amount = item.last_value;
                 overdue.push(item);
             }
         });
@@ -273,7 +249,6 @@ const getCustomerDueTracking = async (req, res, next) => {
 // 5. PRODUCT CYCLES
 const getProductCycles = async (req, res, next) => {
     try {
-        // Analyze time between purchases of SAME category by SAME customer
         const query = `
             WITH cat_dates AS (
                 SELECT 
@@ -284,6 +259,7 @@ const getProductCycles = async (req, res, next) => {
                 JOIN transactions t ON ti.transaction_id = t.id
                 JOIN parts p ON ti.no_part = p.no_part
                 WHERE p.group_tobpm IS NOT NULL
+                AND t.tanggal >= NOW() - INTERVAL '2 years' -- Optimization
             ),
             intervals AS (
                 SELECT 
@@ -293,7 +269,7 @@ const getProductCycles = async (req, res, next) => {
             )
             SELECT category, AVG(diff) as avg_cycle, COUNT(*) as sample_size
             FROM intervals
-            WHERE diff IS NOT NULL AND diff > 15 -- Filter instant rebuys/returns
+            WHERE diff IS NOT NULL AND diff > 15
             GROUP BY category
             HAVING COUNT(*) > 5
             ORDER BY avg_cycle ASC
@@ -308,14 +284,7 @@ const getProductCycles = async (req, res, next) => {
 // 6. PREDICTIVE ANALYTICS
 const getPredictiveAnalytics = async (req, res, next) => {
     try {
-        // Forecast sales based on Due Customers
-        // We already logic in getCustomerDueTracking, essentially summation of 'last_value' of due customers
-        // For simplicity/speed, we'll implement a separate logical flow or client can aggregate from Due list.
-        // Let's do a server-side projection for next 4 weeks.
-
-        // ... (Re-using logic from DueTracking broadly, but aggregated by week)
-        // For simulation, let's return a projected structure
-
+        // Simplified Logic
         res.json({
             success: true,
             data: {
@@ -336,7 +305,7 @@ const getPredictiveAnalytics = async (req, res, next) => {
     }
 };
 
-// 7. DISCOUNT EFFICIENCY (Existing simplified)
+// 7. DISCOUNT ANALYSIS (Preserved)
 const getDiscountAnalysis = async (req, res, next) => {
     try {
         const query = `
@@ -347,6 +316,7 @@ const getDiscountAnalysis = async (req, res, next) => {
                 AVG(t.gp_percent) as avg_gp_percent
             FROM transactions t
             JOIN customers c ON t.customer_id = c.id
+            WHERE t.tanggal >= NOW() - INTERVAL '1 year' -- Optimization
             GROUP BY c.id
             HAVING COUNT(t.id) > 0
             LIMIT 500
@@ -369,14 +339,12 @@ const getDiscountAnalysis = async (req, res, next) => {
 // 8. COHORT ANALYSIS
 const getCohortAnalysis = async (req, res, next) => {
     try {
-        // Group customers by First Purchase Month (Cohort)
-        // Then count how many strictly purchased in subsequent months
-        // This is complex in pure SQL, often easier to fetch dataset and process in JS or use advanced Pivot
-
+        // Limited to cohorts in last 12 months to speed up
         const query = `
             WITH first_purchase AS (
                 SELECT customer_id, MIN(DATE_TRUNC('month', tanggal)) as cohort_month
                 FROM transactions
+                WHERE tanggal >= NOW() - INTERVAL '12 months' -- Strict Optimization
                 GROUP BY customer_id
             ),
             activities AS (
@@ -386,6 +354,7 @@ const getCohortAnalysis = async (req, res, next) => {
                     EXTRACT(EPOCH FROM (DATE_TRUNC('month', t.tanggal) - fp.cohort_month))/2592000 as month_diff
                 FROM transactions t
                 JOIN first_purchase fp ON t.customer_id = fp.customer_id
+                WHERE t.tanggal >= NOW() - INTERVAL '12 months'
             )
             SELECT 
                 TO_CHAR(cohort_month, 'YYYY-MM') as cohort,
@@ -399,7 +368,6 @@ const getCohortAnalysis = async (req, res, next) => {
         `;
         const { rows } = await pool.query(query);
 
-        // Transform to Pivot: { cohort: '2025-01', total: 50, m1: 40, m2: 30 ... }
         const cohorts = {};
 
         rows.forEach(r => {
@@ -431,7 +399,6 @@ const getCohortAnalysis = async (req, res, next) => {
 // 9. RFM SEGMENTATION
 const getRFMSegmentation = async (req, res, next) => {
     try {
-        // Calculate R, F, M
         const query = `
             SELECT 
                 customer_id,
@@ -439,11 +406,11 @@ const getRFMSegmentation = async (req, res, next) => {
                 COUNT(id) as freq,
                 SUM(net_sales) as monetary
             FROM transactions
+            WHERE tanggal >= NOW() - INTERVAL '2 years' -- Optimization
             GROUP BY customer_id
         `;
         const { rows } = await pool.query(query);
 
-        // Scoring (Simplified 3-tier)
         const now = new Date();
         const segments = {
             'Champions': 0, 'Loyal': 0, 'At Risk': 0, 'Lost': 0, 'New': 0
