@@ -62,10 +62,22 @@ app.get('/api/health', (req, res) => {
 // Error handler
 app.use(errorHandler);
 
+const applyIndices = require('./utils/dbOptimizer');
+
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-    console.log(`\n🚀 AMPConnect API Server running on port ${PORT}`);
-    console.log(`📍 http://localhost:${PORT}/api/health\n`);
-});
+
+// Optimized Startup
+const startServer = async () => {
+    // 1. Optimize DB
+    await applyIndices();
+
+    // 2. Start Listening
+    app.listen(PORT, () => {
+        console.log(`\n🚀 AMPConnect API Server running on port ${PORT}`);
+        console.log(`📍 http://localhost:${PORT}/api/health\n`);
+    });
+};
+
+startServer();
 
 module.exports = app;
