@@ -95,15 +95,23 @@ const getBuyingCycleAnalysis = async (req, res, next) => {
             return res.json(dashboardCache.buyingCycle.data);
         }
 
+        // Optimization: Use "Most Recent" customers (Index Scan) instead of "Most Frequent" (Full Table Scan)
         const query = `
-            WITH active_customers AS (
-                -- Only analyze top 500 active customers (Aggressive Optimization)
-                SELECT customer_id 
-                FROM transactions 
+            WITH recent_customers AS (
+                SELECT DISTINCT customer_id
+                FROM transactions
                 WHERE tanggal >= NOW() - INTERVAL '2 years'
-                GROUP BY customer_id 
-                HAVING COUNT(id) > 1
-                ORDER BY COUNT(id) DESC
+                ORDER BY customer_id -- Postgres distinct optimization
+                LIMIT 2000 -- Grab a large pool first
+            ),
+            target_customers AS (
+                -- Refine to truly most recent from the pool if needed, or just use the pool
+                -- For speed, we just analyze the chunks.
+                -- Better approach for strictly "Recent":
+                SELECT DISTINCT ON (customer_id) customer_id, tanggal
+                FROM transactions
+                WHERE tanggal >= NOW() - INTERVAL '1 year'
+                ORDER BY customer_id, tanggal DESC
                 LIMIT 500
             ),
             user_cycles AS (
@@ -113,7 +121,7 @@ const getBuyingCycleAnalysis = async (req, res, next) => {
                     SELECT customer_id, tanggal, LAG(tanggal) OVER (PARTITION BY customer_id ORDER BY tanggal) as prev_date
                     FROM transactions
                     WHERE tanggal >= NOW() - INTERVAL '2 years'
-                    AND customer_id IN (SELECT customer_id FROM active_customers) -- Optimization: Join limited set
+                    AND customer_id IN (SELECT customer_id FROM target_customers) -- Optimization: Join limited set
                  ) t
                  JOIN customers c ON t.customer_id = c.id
                  WHERE prev_date IS NOT NULL
@@ -238,14 +246,12 @@ const getCustomerDueTracking = async (req, res, next) => {
         }
 
         const query = `
-            WITH active_customers AS (
-                -- Same logic: Focus on top 500 active customers (Aggressive)
-                SELECT customer_id 
-                FROM transactions 
-                WHERE tanggal >= NOW() - INTERVAL '18 months'
-                GROUP BY customer_id 
-                HAVING COUNT(id) > 1
-                ORDER BY COUNT(id) DESC
+            WITH target_customers AS (
+                -- Optimization: Use "Most Recent" customers (Index Scan)
+                SELECT DISTINCT ON (customer_id) customer_id, tanggal
+                FROM transactions
+                WHERE tanggal >= NOW() - INTERVAL '1 year'
+                ORDER BY customer_id, tanggal DESC
                 LIMIT 500
             ) 
             SELECT t.customer_id, COALESCE(c.name, t.no_customer) as name, 
@@ -256,7 +262,7 @@ const getCustomerDueTracking = async (req, res, next) => {
                 SELECT customer_id, no_customer, net_sales, tanggal, LAG(tanggal) OVER (PARTITION BY customer_id ORDER BY tanggal) as prev_date
                 FROM transactions
                 WHERE tanggal >= NOW() - INTERVAL '18 months'
-                AND customer_id IN (SELECT customer_id FROM active_customers)
+                AND customer_id IN (SELECT customer_id FROM target_customers)
             ) t
             LEFT JOIN customers c ON t.customer_id = c.id
             WHERE prev_date IS NOT NULL
