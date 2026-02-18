@@ -7,9 +7,27 @@ const daysBetween = (d1, d2) => {
 };
 
 // 1. OVERVIEW METRICS (Hero Section)
+// Simple In-Memory Cache (Global for Admin Dashboard)
+const dashboardCache = {
+    overview: { data: null, time: 0 },
+    buyingCycle: { data: null, time: 0 },
+    seasonality: { data: null, time: 0 },
+    dueTracking: { data: null, time: 0 },
+    productCycles: { data: null, time: 0 },
+    predictive: { data: null, time: 0 },
+    discount: { data: null, time: 0 },
+    cohorts: { data: null, time: 0 },
+    rfm: { data: null, time: 0 }
+};
+const CACHE_TTL = 5 * 60 * 1000; // 5 Minutes
+
 // 1. OVERVIEW METRICS (Hero Section)
 const getOverviewMetrics = async (req, res, next) => {
     try {
+        if (Date.now() - dashboardCache.overview.time < CACHE_TTL && dashboardCache.overview.data) {
+            return res.json(dashboardCache.overview.data);
+        }
+
         // A. Avg Buying Cycle & Active Patterns (Last 2 Years)
         const cycleQuery = `
             WITH intervals AS (
@@ -52,7 +70,7 @@ const getOverviewMetrics = async (req, res, next) => {
         `;
         const riskRes = await pool.query(riskQuery);
 
-        res.json({
+        const responseData = {
             success: true,
             data: {
                 avg_cycle: Math.round(cycleRes.rows[0].avg_cycle || 0),
@@ -61,7 +79,10 @@ const getOverviewMetrics = async (req, res, next) => {
                 revenue_at_risk: parseInt(riskRes.rows[0].revenue_at_risk || 0),
                 overdue_count: parseInt(riskRes.rows[0].overdue_count || 0)
             }
-        });
+        };
+
+        dashboardCache.overview = { data: responseData, time: Date.now() };
+        res.json(responseData);
     } catch (error) {
         next(error);
     }
@@ -70,16 +91,20 @@ const getOverviewMetrics = async (req, res, next) => {
 // 2. BUYING CYCLE ANALYSIS
 const getBuyingCycleAnalysis = async (req, res, next) => {
     try {
+        if (Date.now() - dashboardCache.buyingCycle.time < CACHE_TTL && dashboardCache.buyingCycle.data) {
+            return res.json(dashboardCache.buyingCycle.data);
+        }
+
         const query = `
             WITH active_customers AS (
-                -- Only analyze top 2000 customers by frequency in last 2 years to keep it fast
+                -- Only analyze top 500 active customers (Aggressive Optimization)
                 SELECT customer_id 
                 FROM transactions 
                 WHERE tanggal >= NOW() - INTERVAL '2 years'
                 GROUP BY customer_id 
                 HAVING COUNT(id) > 1
                 ORDER BY COUNT(id) DESC
-                LIMIT 2000
+                LIMIT 500
             ),
             user_cycles AS (
                  SELECT t.customer_id, c.name, MAX(t.tanggal) as last_purchase,
@@ -94,7 +119,7 @@ const getBuyingCycleAnalysis = async (req, res, next) => {
                  WHERE prev_date IS NOT NULL
                  GROUP BY t.customer_id, c.name
             )
-            SELECT * FROM user_cycles LIMIT 1000
+            SELECT * FROM user_cycles LIMIT 500
         `;
         const { rows } = await pool.query(query);
 
@@ -125,10 +150,13 @@ const getBuyingCycleAnalysis = async (req, res, next) => {
             };
         }).sort((a, b) => a.next_due - b.next_due).slice(0, 50);
 
-        res.json({
+        const responseData = {
             success: true,
             data: { patterns, distribution }
-        });
+        };
+
+        dashboardCache.buyingCycle = { data: responseData, time: Date.now() };
+        res.json(responseData);
     } catch (error) {
         next(error);
     }
@@ -137,6 +165,10 @@ const getBuyingCycleAnalysis = async (req, res, next) => {
 // 3. SEASONALITY ANALYSIS
 const getSeasonalityAnalysis = async (req, res, next) => {
     try {
+        if (Date.now() - dashboardCache.seasonality.time < CACHE_TTL && dashboardCache.seasonality.data) {
+            return res.json(dashboardCache.seasonality.data);
+        }
+
         const query = `
             SELECT 
                 EXTRACT(MONTH FROM t.tanggal) as month,
@@ -186,10 +218,13 @@ const getSeasonalityAnalysis = async (req, res, next) => {
 
         seasonalIndex.sort((a, b) => b.index - a.index);
 
-        res.json({
+        const responseData = {
             success: true,
             data: { heatmap, seasonalIndex }
-        });
+        };
+
+        dashboardCache.seasonality = { data: responseData, time: Date.now() };
+        res.json(responseData);
     } catch (error) {
         next(error);
     }
@@ -198,16 +233,20 @@ const getSeasonalityAnalysis = async (req, res, next) => {
 // 4. CUSTOMER DUE TRACKING
 const getCustomerDueTracking = async (req, res, next) => {
     try {
+        if (Date.now() - dashboardCache.dueTracking.time < CACHE_TTL && dashboardCache.dueTracking.data) {
+            return res.json(dashboardCache.dueTracking.data);
+        }
+
         const query = `
             WITH active_customers AS (
-                -- Same logic: Focus on top 2000 active customers
+                -- Same logic: Focus on top 500 active customers (Aggressive)
                 SELECT customer_id 
                 FROM transactions 
                 WHERE tanggal >= NOW() - INTERVAL '18 months'
                 GROUP BY customer_id 
                 HAVING COUNT(id) > 1
                 ORDER BY COUNT(id) DESC
-                LIMIT 2000
+                LIMIT 500
             ) 
             SELECT t.customer_id, COALESCE(c.name, t.no_customer) as name, 
                    MAX(t.tanggal) as last_purchase,
@@ -256,13 +295,16 @@ const getCustomerDueTracking = async (req, res, next) => {
             }
         });
 
-        res.json({
+        const responseData = {
             success: true,
             data: {
                 due_this_week: dueThisWeek.sort((a, b) => new Date(a.due_date) - new Date(b.due_date)),
                 overdue: overdue.sort((a, b) => b.risk_amount - a.risk_amount).slice(0, 50)
             }
-        });
+        };
+
+        dashboardCache.dueTracking = { data: responseData, time: Date.now() };
+        res.json(responseData);
     } catch (error) {
         next(error);
     }
