@@ -22,13 +22,13 @@ const customerLinks = [
 const adminLinks = [
     { path: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { path: '/admin/sales', label: 'Analitik Penjualan', icon: BarChart3 },
-    { path: '/admin/seasonality', label: 'Seasonal Insight', icon: Calendar }, // Added
-    { path: '/admin/stock', label: 'Manajemen Stok', icon: Package },
-    { path: '/admin/upload', label: 'Upload Data', icon: Upload },
-    { path: '/admin/users', label: 'Manajemen User', icon: Users },
+    { path: '/admin/seasonality', label: 'Seasonal Insight', icon: Calendar },
     { path: '/admin/customer-analytics', label: 'Analitik Customer', icon: TrendingUp },
     { path: '/admin/inventory-analytics', label: 'Analitik Produk', icon: Layers },
     { path: '/admin/price-analytics', label: 'Analitik Harga', icon: Percent },
+    { path: '/admin/stock', label: 'Manajemen Stok', icon: Package },
+    { path: '/admin/upload', label: 'Upload Data', icon: Upload },
+    { path: '/admin/users', label: 'Manajemen User', icon: Users },
     { path: '/admin/reports', label: 'Laporan', icon: FileText },
     { path: '/admin/settings', label: 'Pengaturan', icon: Settings },
 ];
@@ -81,61 +81,64 @@ export default function Sidebar({ type = 'customer' }) {
                 width: 260, background: 'var(--bg-sidebar)',
                 color: 'white', zIndex: 1000,
                 transform: mobileOpen ? 'translateX(0)' : undefined,
-                overflowY: 'auto',
+                display: 'flex', flexDirection: 'column', // Changed to Flexbox
                 transition: 'transform 0.3s ease',
                 ...(typeof window !== 'undefined' && window.innerWidth <= 768 && !mobileOpen
                     ? { transform: 'translateX(-100%)' } : {})
             }}>
-                {/* Logo */}
-                <div style={{ padding: '24px 20px', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
-                    <img src="/logo_white.png" alt="Logo" style={{ height: 'auto', width: '100%', maxWidth: '180px', objectFit: 'contain', filter: 'brightness(0) invert(1)' }} />
-                    <div style={{ paddingLeft: 4 }}>
-                        <p style={{ fontSize: '0.65rem', color: '#64748b', margin: 0, marginTop: 4 }}>
-                            {type === 'admin' ? 'Admin Portal' : 'Customer Portal'}
-                        </p>
+                {/* Scrollable Content Wrapper */}
+                <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+                    {/* Logo */}
+                    <div style={{ padding: '24px 20px', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start', flexShrink: 0 }}>
+                        <img src="/logo_white.png" alt="Logo" style={{ width: '130px', height: 'auto', objectFit: 'contain', filter: 'brightness(0) invert(1)' }} />
+                        <div style={{ paddingLeft: 4 }}>
+                            <p style={{ fontSize: '0.65rem', color: '#64748b', margin: 0, marginTop: 4 }}>
+                                {type === 'admin' ? 'Admin Portal' : 'Customer Portal'}
+                            </p>
+                        </div>
                     </div>
+
+                    {/* User info */}
+                    {user && (
+                        <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.08)', flexShrink: 0 }}>
+                            <p style={{ fontSize: '0.9rem', fontWeight: 600 }}>{user.name || user.username}</p>
+                            <p style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
+                                {type === 'admin' ? user.role : user.no_customer}
+                            </p>
+                        </div>
+                    )}
+
+                    {/* Nav Links */}
+                    <nav style={{ padding: '12px 0', flex: 1 }}>
+                        {links.map((link) => {
+                            const isActive = location.pathname === link.path;
+                            const Icon = link.icon;
+                            return (
+                                <Link
+                                    key={link.path}
+                                    to={link.path}
+                                    onClick={() => setMobileOpen(false)}
+                                    style={{
+                                        display: 'flex', alignItems: 'center', gap: 12,
+                                        padding: '12px 20px', margin: '2px 8px', borderRadius: 'var(--radius)',
+                                        color: isActive ? 'white' : '#94a3b8',
+                                        background: isActive ? 'var(--primary)' : 'transparent',
+                                        textDecoration: 'none', fontSize: '0.9rem', fontWeight: isActive ? 600 : 400,
+                                        transition: 'all 0.2s ease',
+                                    }}
+                                    onMouseEnter={(e) => { if (!isActive) e.target.style.background = 'var(--bg-sidebar-hover)'; }}
+                                    onMouseLeave={(e) => { if (!isActive) e.target.style.background = 'transparent'; }}
+                                >
+                                    <Icon size={20} />
+                                    {link.label}
+                                </Link>
+                            );
+                        })}
+                    </nav>
                 </div>
 
-                {/* User info */}
-                {user && (
-                    <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                        <p style={{ fontSize: '0.9rem', fontWeight: 600 }}>{user.name || user.username}</p>
-                        <p style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
-                            {type === 'admin' ? user.role : user.no_customer}
-                        </p>
-                    </div>
-                )}
-
-                {/* Nav Links */}
-                <nav style={{ padding: '12px 0' }}>
-                    {links.map((link) => {
-                        const isActive = location.pathname === link.path;
-                        const Icon = link.icon;
-                        return (
-                            <Link
-                                key={link.path}
-                                to={link.path}
-                                onClick={() => setMobileOpen(false)}
-                                style={{
-                                    display: 'flex', alignItems: 'center', gap: 12,
-                                    padding: '12px 20px', margin: '2px 8px', borderRadius: 'var(--radius)',
-                                    color: isActive ? 'white' : '#94a3b8',
-                                    background: isActive ? 'var(--primary)' : 'transparent',
-                                    textDecoration: 'none', fontSize: '0.9rem', fontWeight: isActive ? 600 : 400,
-                                    transition: 'all 0.2s ease',
-                                }}
-                                onMouseEnter={(e) => { if (!isActive) e.target.style.background = 'var(--bg-sidebar-hover)'; }}
-                                onMouseLeave={(e) => { if (!isActive) e.target.style.background = 'transparent'; }}
-                            >
-                                <Icon size={20} />
-                                {link.label}
-                            </Link>
-                        );
-                    })}
-                </nav>
-
-                {/* Logout */}
-                <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '16px 20px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+                {/* Logout - Fixed at bottom of flex container */}
+                <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(255,255,255,0.08)', flexShrink: 0, backgroundColor: 'var(--bg-sidebar)' }}>
                     <button
                         onClick={handleLogout}
                         style={{
