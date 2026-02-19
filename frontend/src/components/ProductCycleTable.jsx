@@ -5,21 +5,29 @@ const ProductCycleTable = ({ data }) => {
     if (!data) return null;
 
     return (
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-6">
-            <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
-                <Wrench className="w-5 h-5 mr-2 text-gray-500" />
+        <div className="card" style={{ marginBottom: 24 }}>
+            <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text)', marginBottom: 16, display: 'flex', alignItems: 'center' }}>
+                <Wrench size={20} style={{ marginRight: 8, color: 'var(--text-secondary)' }} />
                 Typical Replacement Cycles
             </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
                 {data.map((item, i) => (
-                    <div key={i} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg border border-gray-100">
+                    <div key={i} style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        padding: 12,
+                        background: '#f8fafc',
+                        borderRadius: 8,
+                        border: '1px solid var(--border-light)'
+                    }}>
                         <div>
-                            <p className="font-semibold text-gray-700">{item.category}</p>
-                            <p className="text-xs text-gray-400">{item.sample_size} buyers analyzed</p>
+                            <p style={{ fontWeight: 600, color: 'var(--text)', margin: 0 }}>{item.category}</p>
+                            <p style={{ fontSize: '0.75rem', color: 'var(--text-light)', margin: 0 }}>{item.sample_size} buyers analyzed</p>
                         </div>
-                        <div className="text-right">
-                            <p className="text-xl font-bold text-blue-600">{Math.round(item.avg_cycle)}d</p>
-                            <p className="text-xs text-gray-500">Avg Cycle</p>
+                        <div style={{ textAlign: 'right' }}>
+                            <p style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--primary)', margin: 0 }}>{Math.round(item.avg_cycle)}d</p>
+                            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0 }}>Avg Cycle</p>
                         </div>
                     </div>
                 ))}

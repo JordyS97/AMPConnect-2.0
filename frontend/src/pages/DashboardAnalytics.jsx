@@ -28,23 +28,14 @@ const DashboardAnalytics = () => {
     useEffect(() => {
         // Fetch each section independently to avoid blocking the whole UI
         const loadData = () => {
-            // 1. Overview
             fetchSection('overview', 'overview');
-            // 2. Buying Cycle
             fetchSection('buying-cycle', 'buyingCycle');
-            // 3. Seasonality
             fetchSection('seasonality', 'seasonality');
-            // 4. Due Tracking
             fetchSection('due-tracking', 'dueTracking');
-            // 5. Product Cycles
             fetchSection('product-cycles', 'productCycles');
-            // 6. Predictive
             fetchSection('predictive', 'predictive');
-            // 7. Cohorts
             fetchSection('cohorts', 'cohorts');
-            // 8. RFM
             fetchSection('rfm', 'rfm');
-            // 9. Discounts
             fetchSection('discounts', 'discounts');
         };
 
@@ -64,17 +55,16 @@ const DashboardAnalytics = () => {
         }
     };
 
-    // Check if at least overview is loaded to show the main structure, 
-    // but we want to render immediately so individual components can show their loading states.
-    // So we effectively remove the global loading check.
-
-
     return (
-        <div className="min-h-screen bg-gray-50 p-6">
-            <div className="max-w-7xl mx-auto">
-                <div className="mb-8">
-                    <h1 className="text-2xl font-bold text-gray-900">Seasonal & Buying Cycle Intelligence</h1>
-                    <p className="text-gray-500">Advanced analytics for retention, seasonality, and inventory forecasting.</p>
+        <div className="main-content" style={{ background: 'linear-gradient(135deg, #f8fafc 0%, #e0f2fe 100%)' }}>
+            <div style={{ maxWidth: '100%', margin: '0 auto' }}>
+                <div className="card" style={{ marginBottom: 20, borderLeft: '4px solid var(--primary)' }}>
+                    <h1 style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>
+                        Seasonal & Buying Cycle Intelligence
+                    </h1>
+                    <p style={{ color: 'var(--text-secondary)' }}>
+                        Advanced analytics for retention, seasonality, and inventory forecasting.
+                    </p>
                 </div>
 
                 {/* 1. Overview KPIs */}
@@ -86,9 +76,28 @@ const DashboardAnalytics = () => {
                 {/* 3. Seasonality */}
                 <SeasonalitySection data={data.seasonality} />
 
-                <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-                    {/* Left Column (2/3) */}
-                    <div className="xl:col-span-2">
+                {/* Main Content Grid: 3fr (Main Data) - 1fr (Sidebar/Actions) */}
+                <div className="charts-grid-custom">
+                    <style>
+                        {`
+                            .charts-grid-custom {
+                                display: grid;
+                                grid-template-columns: 3fr 1fr;
+                                gap: 16px;
+                            }
+                            @media (max-width: 1200px) {
+                                .charts-grid-custom {
+                                    grid-template-columns: 2fr 1fr;
+                                }
+                            }
+                            @media (max-width: 1024px) {
+                                .charts-grid-custom {
+                                    grid-template-columns: 1fr;
+                                }
+                            }
+                        `}
+                    </style>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                         {/* 4. Due Tracking */}
                         <CustomerDueSection data={data.dueTracking} />
 
@@ -99,10 +108,12 @@ const DashboardAnalytics = () => {
                         <CohortAnalysis data={data.cohorts} />
                     </div>
 
-                    {/* Right Column (1/3) */}
-                    <div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                         {/* 10. Action Plan (Priority List) */}
-                        <ActionPlan />
+                        <ActionPlan
+                            overdueData={data.dueTracking?.overdue}
+                            inventoryData={data.predictive?.inventory}
+                        />
 
                         {/* 9. RFM Segmentation */}
                         <RFMSegmentation data={data.rfm} />

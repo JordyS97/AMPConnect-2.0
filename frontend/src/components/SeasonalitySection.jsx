@@ -1,7 +1,7 @@
 import React from 'react';
 
 const SeasonalitySection = ({ data }) => {
-    if (!data) return <div className="p-4 bg-white rounded-xl shadow-sm">Loading Seasonality...</div>;
+    if (!data) return <div className="card p-4 animate-pulse">Loading Seasonality...</div>;
 
     const { heatmap, seasonalIndex } = data;
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -9,39 +9,48 @@ const SeasonalitySection = ({ data }) => {
 
     // Helper to determine cell color
     const getCellColor = (val, cat) => {
-        if (!val) return 'bg-gray-50';
+        if (!val) return '#f9fafb';
         // Normalize against category max
         const max = Math.max(...Object.values(heatmap[cat]));
         const ratio = val / (max || 1);
 
-        if (ratio > 0.8) return 'bg-green-500 text-white';
-        if (ratio > 0.5) return 'bg-green-300 text-green-900';
-        return 'bg-green-100 text-green-800';
+        if (ratio > 0.8) return '#22c55e'; // green-500
+        if (ratio > 0.5) return '#86efac'; // green-300
+        return '#dcfce7'; // green-100
+    };
+
+    const getTextColor = (val, cat) => {
+        if (!val) return '#9ca3af';
+        const max = Math.max(...Object.values(heatmap[cat]));
+        const ratio = val / (max || 1);
+        if (ratio > 0.8) return 'white';
+        if (ratio > 0.5) return '#14532d';
+        return '#166534';
     };
 
     return (
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
+        <div className="charts-grid-custom" style={{ marginBottom: 20 }}>
             {/* Heatmap */}
-            <div className="xl:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                <h3 className="text-lg font-bold text-gray-800 mb-4">📅 Seasonal Heatmap</h3>
-                <div className="overflow-x-auto">
-                    <table className="w-full text-sm border-collapse">
+            <div className="card">
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text)', marginBottom: 16 }}>📅 Seasonal Heatmap</h3>
+                <div className="table-container">
+                    <table style={{ fontSize: '0.8rem' }}>
                         <thead>
                             <tr>
-                                <th className="p-2 text-left text-gray-500">Category</th>
-                                {months.map(m => <th key={m} className="p-2 text-center text-gray-500 text-xs">{m}</th>)}
+                                <th style={{ padding: 8 }}>Category</th>
+                                {months.map(m => <th key={m} style={{ padding: 8, textAlign: 'center' }}>{m}</th>)}
                             </tr>
                         </thead>
                         <tbody>
                             {categories.map(cat => (
-                                <tr key={cat} className="border-b">
-                                    <td className="p-2 font-medium text-xs">{cat}</td>
+                                <tr key={cat}>
+                                    <td style={{ padding: 8, fontWeight: 500 }}>{cat}</td>
                                     {months.map((_, idx) => {
                                         const m = idx + 1;
                                         const val = heatmap[cat][m];
                                         return (
-                                            <td key={m} className={`p-1 text-center border border-white ${getCellColor(val, cat)}`}>
-                                                <span className="text-[10px]">{val || '-'}</span>
+                                            <td key={m} style={{ padding: 4, textAlign: 'center', background: getCellColor(val, cat), color: getTextColor(val, cat), borderRadius: 4 }}>
+                                                {val || '-'}
                                             </td>
                                         );
                                     })}
@@ -53,22 +62,22 @@ const SeasonalitySection = ({ data }) => {
             </div>
 
             {/* Seasonal Index Strength */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                <h3 className="text-lg font-bold text-gray-800 mb-4">🌡️ Seasonal Strength Index</h3>
-                <div className="space-y-4">
+            <div className="card">
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text)', marginBottom: 16 }}>🌡️ Seasonal Strength Index</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                     {seasonalIndex.slice(0, 5).map((item, i) => (
                         <div key={i}>
-                            <div className="flex justify-between text-sm mb-1">
-                                <span className="font-semibold">{item.category}</span>
-                                <span className="text-gray-500">Idx: {item.index}</span>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', marginBottom: 4 }}>
+                                <span style={{ fontWeight: 600 }}>{item.category}</span>
+                                <span style={{ color: 'var(--text-secondary)' }}>Idx: {item.index}</span>
                             </div>
-                            <div className="w-full bg-gray-100 rounded-full h-2">
+                            <div className="progress-bar" style={{ height: 8 }}>
                                 <div
-                                    className="bg-blue-600 h-2 rounded-full"
-                                    style={{ width: `${Math.min(item.index * 100, 100)}%` }}
+                                    className="progress-fill"
+                                    style={{ width: `${Math.min(item.index * 100, 100)}%`, background: 'var(--primary)' }}
                                 ></div>
                             </div>
-                            <p className="text-xs text-gray-400 mt-1">
+                            <p style={{ fontSize: '0.75rem', color: 'var(--text-light)', marginTop: 4 }}>
                                 Peak: {months[item.peak_month - 1]} • Avg: {item.avg_monthly}/mo
                             </p>
                         </div>

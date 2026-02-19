@@ -20,34 +20,42 @@ const DiscountEfficiency = ({ data }) => {
 
     const options = {
         responsive: true,
+        maintainAspectRatio: false,
         plugins: {
             legend: { display: false },
-            title: { display: true, text: 'Discount % vs Frequency' },
+            title: { display: true, text: 'Discount % vs Frequency', color: '#374151', font: { weight: 'bold' } },
             tooltip: {
                 callbacks: {
                     label: (ctx) => `Disc: ${ctx.parsed.x}%, Txs: ${ctx.parsed.y}`
-                }
+                },
+                backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                titleColor: '#1f2937',
+                bodyColor: '#4b5563',
+                borderColor: '#e5e7eb',
+                borderWidth: 1,
             }
         },
         scales: {
             x: {
                 type: 'linear',
                 position: 'bottom',
-                title: { display: true, text: 'Avg Discount (%)' }
+                title: { display: true, text: 'Avg Discount (%)' },
+                grid: { color: '#f3f4f6' }
             },
             y: {
-                title: { display: true, text: 'Purchases' }
+                title: { display: true, text: 'Purchases' },
+                grid: { color: '#f3f4f6' }
             }
         }
     };
 
     return (
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-6">
-            <h3 className="text-lg font-bold text-gray-800 mb-4">🏷️ Discount Efficiency</h3>
-            <div className="h-64">
+        <div className="card" style={{ marginBottom: 24 }}>
+            <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text)', marginBottom: 16 }}>🏷️ Discount Efficiency</h3>
+            <div style={{ height: 260 }}>
                 <Scatter data={chartData} options={options} />
             </div>
-            <p className="text-xs text-center text-gray-400 mt-2">
+            <p style={{ fontSize: '0.75rem', textAlign: 'center', color: 'var(--text-light)', marginTop: 12 }}>
                 Higher discounts do not always equal higher retention. Look for the sweet spot.
             </p>
         </div>

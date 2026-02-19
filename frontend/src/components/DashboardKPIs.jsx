@@ -10,46 +10,114 @@ const DashboardKPIs = ({ data }) => {
             value: `${data.avg_cycle} days`,
             sub: 'Based on active patterns',
             icon: Calendar,
-            color: 'text-blue-600',
-            bg: 'bg-blue-100'
+            color: 'var(--primary)',
+            bg: '#eff6ff',
+            // No historical data for trend yet
+            trend: null,
+            trendClass: 'badge-secondary',
+            barColor: 'var(--primary)',
+            progress: 100 // Full bar as baseline
         },
         {
             title: 'Active Patterns',
             value: data.active_patterns,
             sub: 'Predictable customers',
             icon: Users,
-            color: 'text-green-600',
-            bg: 'bg-green-100'
+            color: 'var(--secondary)',
+            bg: '#f5f3ff',
+            trend: null,
+            trendClass: 'badge-secondary',
+            barColor: 'var(--secondary)',
+            progress: (data.active_patterns > 0 ? 100 : 0) // Simple non-empty check
         },
         {
             title: 'Repeat Purchase Rate',
             value: `${data.repeat_rate}%`,
             sub: 'Returning customers',
             icon: RefreshCw,
-            color: 'text-purple-600',
-            bg: 'bg-purple-100'
+            color: 'var(--success)',
+            bg: '#f0fdf4',
+            trend: null,
+            trendClass: 'badge-secondary',
+            barColor: 'var(--success)',
+            progress: parseFloat(data.repeat_rate)
         },
         {
             title: 'Revenue at Risk',
             value: `Rp ${data.revenue_at_risk?.toLocaleString() || 0}`,
             sub: `${data.overdue_count} overdue customers`,
             icon: AlertTriangle,
-            color: 'text-red-600',
-            bg: 'bg-red-100'
+            color: 'var(--warning)',
+            bg: '#fffbeb',
+            trend: data.overdue_count > 0 ? '⚠️ Action Needed' : 'Good',
+            trendClass: data.overdue_count > 0 ? 'badge-warning' : 'badge-success',
+            barColor: 'var(--warning)',
+            progress: data.overdue_count > 0 ? 100 : 0
         }
     ];
 
     return (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+            gap: 16,
+            marginBottom: 20
+        }}>
             {cards.map((card, index) => (
-                <div key={index} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center">
-                    <div className={`p-3 rounded-full ${card.bg} mr-4`}>
-                        <card.icon className={`w-6 h-6 ${card.color}`} />
+                <div key={index} style={{
+                    background: 'var(--bg-card)',
+                    borderRadius: 'var(--radius-md)',
+                    padding: 20,
+                    boxShadow: 'var(--shadow)',
+                    border: '1px solid var(--border-light)',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    display: 'flex',
+                    flexDirection: 'column'
+                }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div style={{
+                            width: 48,
+                            height: 48,
+                            borderRadius: 'var(--radius)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            marginBottom: 12,
+                            background: card.bg,
+                            color: card.color
+                        }}>
+                            <card.icon size={24} />
+                        </div>
+                        {card.trend && (
+                            <span className={`badge ${card.trendClass}`}>
+                                {card.trend}
+                            </span>
+                        )}
                     </div>
-                    <div>
-                        <p className="text-gray-500 text-sm">{card.title}</p>
-                        <h3 className="text-xl font-bold text-gray-800">{card.value}</h3>
-                        <p className="text-xs text-gray-400">{card.sub}</p>
+
+                    <div style={{ marginTop: 12 }}>
+                        <h3 className="stat-value">{card.value}</h3>
+                        <p className="stat-label">{card.title}</p>
+                        <p style={{ fontSize: '0.75rem', color: 'var(--text-light)', marginBottom: 8 }}>{card.sub}</p>
+
+                        {/* Progress Bar */}
+                        <div style={{
+                            width: '100%',
+                            height: 6,
+                            background: 'var(--border-light)',
+                            borderRadius: 999
+                        }}>
+                            <div
+                                style={{
+                                    height: '100%',
+                                    borderRadius: 999,
+                                    width: `${Math.min(card.progress, 100)}%`,
+                                    background: card.barColor,
+                                    transition: 'width 0.5s ease'
+                                }}
+                            ></div>
+                        </div>
                     </div>
                 </div>
             ))}

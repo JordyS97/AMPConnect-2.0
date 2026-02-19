@@ -354,20 +354,49 @@ const getProductCycles = async (req, res, next) => {
 // 6. PREDICTIVE ANALYTICS
 const getPredictiveAnalytics = async (req, res, next) => {
     try {
-        // Simplified Logic
+        // A. Sales Forecast (Simple Projection based on last 30 days)
+        // Group by week relative to now
+        const forecastQuery = `
+            WITH weekly_sales AS (
+                SELECT 
+                    DATE_TRUNC('week', tanggal) as week_start,
+                    SUM(net_sales) as revenue,
+                    COUNT(DISTINCT customer_id) as customers
+                FROM transactions
+                WHERE tanggal >= NOW() - INTERVAL '30 days'
+                GROUP BY 1
+                ORDER BY 1 DESC
+                LIMIT 4
+            )
+            SELECT 
+                'Week ' || ROW_NUMBER() OVER (ORDER BY week_start ASC) as week,
+                revenue,
+                customers,
+                'N/A' as top_product -- Simplified for speed
+            FROM weekly_sales
+        `;
+        const forecastRes = await pool.query(forecastQuery);
+
+        // B. Stock Recommendations (Low Stock < 10 units)
+        // Assuming 'stok_awal' is current stock (or close to it)
+        const stockQuery = `
+            SELECT 
+                no_part as part,
+                stok_awal as current,
+                10 as needed, -- Threshold
+                CASE WHEN stok_awal < 5 THEN 'Urgent' ELSE 'Order' END as status
+            FROM parts
+            WHERE stok_awal < 10
+            ORDER BY stok_awal ASC
+            LIMIT 5
+        `;
+        const stockRes = await pool.query(stockQuery);
+
         res.json({
             success: true,
             data: {
-                forecast: [
-                    { week: 'Week 1', revenue: 18500000, customers: 23, top_product: 'OIL' },
-                    { week: 'Week 2', revenue: 14200000, customers: 18, top_product: 'OIL' },
-                    { week: 'Week 3', revenue: 16800000, customers: 21, top_product: 'TIRE' },
-                    { week: 'Week 4', revenue: 21300000, customers: 25, top_product: 'TIRE' }
-                ],
-                inventory: [
-                    { part: 'MPX1 10W30', current: 47, needed: 65, status: 'Order' },
-                    { part: 'TIRE RR 90/90-14', current: 5, needed: 28, status: 'Urgent' }
-                ]
+                forecast: forecastRes.rows.length > 0 ? forecastRes.rows : [],
+                inventory: stockRes.rows
             }
         });
     } catch (error) {
