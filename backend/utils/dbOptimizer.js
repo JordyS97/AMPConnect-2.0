@@ -13,12 +13,14 @@ const applyIndices = async () => {
 
         // 1. Index for Transaction Items -> Parts join
         await client.query('CREATE INDEX IF NOT EXISTS idx_transaction_items_part ON transaction_items(no_part);');
+        await client.query('CREATE INDEX IF NOT EXISTS idx_transaction_items_tx ON transaction_items(transaction_id);'); // Critical for Joins
 
         // 2. Index for Parts grouping
         await client.query('CREATE INDEX IF NOT EXISTS idx_parts_group_tobpm ON parts(group_tobpm);');
 
         // 3. Composite Index for Customer Buying Cycles (Sort/Filter)
         await client.query('CREATE INDEX IF NOT EXISTS idx_transactions_cust_date ON transactions(customer_id, tanggal);');
+        await client.query('CREATE INDEX IF NOT EXISTS idx_transactions_customer ON transactions(customer_id);'); // Faster grouping
 
         // 4. Index for Transactions Date (if not exists from schema)
         await client.query('CREATE INDEX IF NOT EXISTS idx_transactions_date_opt ON transactions(tanggal);');

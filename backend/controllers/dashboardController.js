@@ -28,12 +28,12 @@ const getOverviewMetrics = async (req, res, next) => {
             return res.json(dashboardCache.overview.data);
         }
 
-        // A. Avg Buying Cycle & Active Patterns (Last 2 Years)
+        // A. Avg Buying Cycle & Active Patterns (Last 12 Months - Speed Opt)
         const cycleQuery = `
             WITH intervals AS (
                 SELECT t.customer_id, t.tanggal - LAG(t.tanggal) OVER (PARTITION BY t.customer_id ORDER BY t.tanggal) as days_diff
                 FROM transactions t
-                WHERE t.tanggal >= NOW() - INTERVAL '2 years' -- Optimization
+                WHERE t.tanggal >= NOW() - INTERVAL '12 months' 
             )
             SELECT AVG(days_diff) as avg_cycle, COUNT(DISTINCT customer_id) as active_patterns
             FROM intervals
@@ -41,26 +41,26 @@ const getOverviewMetrics = async (req, res, next) => {
         `;
         const cycleRes = await pool.query(cycleQuery);
 
-        // B. Repeat Purchase Rate (Last 2 Years)
+        // B. Repeat Purchase Rate (Last 12 Months)
         const repeatQuery = `
             SELECT 
                 COUNT(DISTINCT CASE WHEN tx_count > 1 THEN customer_id END)::FLOAT / NULLIF(COUNT(DISTINCT customer_id), 0) * 100 as repeat_rate
             FROM (
                 SELECT customer_id, COUNT(id) as tx_count 
                 FROM transactions 
-                WHERE tanggal >= NOW() - INTERVAL '2 years' -- Optimization
+                WHERE tanggal >= NOW() - INTERVAL '12 months'
                 GROUP BY customer_id
             ) sub
         `;
         const repeatRes = await pool.query(repeatQuery);
 
-        // C. Revenue at Risk (Last 2 Years activity)
+        // C. Revenue at Risk (Last 12 Months activity)
         const riskQuery = `
             WITH last_tx AS (
                 SELECT customer_id, MAX(tanggal) as last_date, 
-                MAX(net_sales) as last_value -- Approx for speed vs subquery
+                MAX(net_sales) as last_value 
                 FROM transactions
-                WHERE tanggal >= NOW() - INTERVAL '2 years' -- Optimization
+                WHERE tanggal >= NOW() - INTERVAL '12 months'
                 GROUP BY customer_id
             )
             SELECT 
@@ -100,17 +100,13 @@ const getBuyingCycleAnalysis = async (req, res, next) => {
             WITH recent_customers AS (
                 SELECT DISTINCT customer_id
                 FROM transactions
-                WHERE tanggal >= NOW() - INTERVAL '2 years'
-                ORDER BY customer_id -- Postgres distinct optimization
-                LIMIT 2000 -- Grab a large pool first
+                WHERE tanggal >= NOW() - INTERVAL '12 months'
             ),
             target_customers AS (
-                -- Refine to truly most recent from the pool if needed, or just use the pool
-                -- For speed, we just analyze the chunks.
                 -- Better approach for strictly "Recent":
                 SELECT DISTINCT ON (customer_id) customer_id, tanggal
                 FROM transactions
-                WHERE tanggal >= NOW() - INTERVAL '1 year'
+                WHERE tanggal >= NOW() - INTERVAL '12 months'
                 ORDER BY customer_id, tanggal DESC
                 LIMIT 500
             ),
@@ -120,7 +116,7 @@ const getBuyingCycleAnalysis = async (req, res, next) => {
                  FROM (
                     SELECT customer_id, tanggal, LAG(tanggal) OVER (PARTITION BY customer_id ORDER BY tanggal) as prev_date
                     FROM transactions
-                    WHERE tanggal >= NOW() - INTERVAL '2 years'
+                    WHERE tanggal >= NOW() - INTERVAL '18 months'
                     AND customer_id IN (SELECT customer_id FROM target_customers) -- Optimization: Join limited set
                  ) t
                  JOIN customers c ON t.customer_id = c.id
@@ -178,14 +174,18 @@ const getSeasonalityAnalysis = async (req, res, next) => {
         }
 
         const query = `
+            WITH limited_tx AS (
+                SELECT id, tanggal 
+                FROM transactions 
+                WHERE tanggal >= NOW() - INTERVAL '12 months'
+            )
             SELECT 
                 EXTRACT(MONTH FROM t.tanggal) as month,
                 COALESCE(NULLIF(p.group_tobpm, ''), 'Other') as category,
                 SUM(ti.qty) as total_qty
             FROM transaction_items ti
-            JOIN transactions t ON ti.transaction_id = t.id
+            JOIN limited_tx t ON ti.transaction_id = t.id -- Join with reduced dataset
             LEFT JOIN parts p ON ti.no_part = p.no_part
-            WHERE t.tanggal >= NOW() - INTERVAL '12 months' -- Reduced further to 1 year for speed
             GROUP BY 1, 2
             ORDER BY 1 ASC
         `;

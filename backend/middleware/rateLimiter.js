@@ -26,7 +26,7 @@ const uploadLimiter = rateLimit({
 // General API limiter: 100 requests per 15 minutes
 const apiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 100,
+    max: 1000,
     message: { success: false, message: 'Terlalu banyak permintaan. Coba lagi nanti.' },
 });
 

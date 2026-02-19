@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../api/axios';
 import DashboardKPIs from '../components/DashboardKPIs';
 import BuyingCycleSection from '../components/BuyingCycleSection';
 import SeasonalitySection from '../components/SeasonalitySection';
@@ -53,8 +53,12 @@ const DashboardAnalytics = () => {
 
     const fetchSection = async (endpoint, key) => {
         try {
-            const res = await axios.get(`http://localhost:5000/api/dashboard/${endpoint}`);
-            setData(prev => ({ ...prev, [key]: res.data.data }));
+            const res = await api.get(`/dashboard/${endpoint}`);
+            if (res.data && res.data.success) {
+                setData(prev => ({ ...prev, [key]: res.data.data }));
+            } else {
+                console.warn(`API returned success:false for ${key}`, res.data);
+            }
         } catch (error) {
             console.error(`Error fetching ${key}:`, error);
         }

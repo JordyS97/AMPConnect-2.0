@@ -45,12 +45,12 @@ export default function AdminLogin() {
             <div className="auth-card admin">
                 <div className="auth-logo">
                     <div style={{
-                        width: 56, height: 56, borderRadius: 'var(--radius-md)',
-                        background: 'linear-gradient(135deg, #2563eb, #7c3aed)',
+                        width: 80, height: 80, borderRadius: 'var(--radius-md)',
+                        background: 'rgba(255,255,255,0.1)',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        margin: '0 auto 16px', boxShadow: '0 0 30px rgba(37,99,235,0.3)',
+                        margin: '0 auto 16px', backdropFilter: 'blur(10px)',
                     }}>
-                        <Shield size={28} color="white" />
+                        <img src="/logo.svg" alt="AMPConnect Logo" style={{ width: 50, height: 50 }} />
                     </div>
                     <h1 style={{ WebkitTextFillColor: 'white', background: 'none', WebkitBackgroundClip: 'unset' }}>AMPConnect Admin</h1>
                     <p>Portal Administrasi</p>
