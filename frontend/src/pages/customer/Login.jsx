@@ -41,8 +41,8 @@ export default function CustomerLogin() {
         <div className="auth-page">
             <div className="auth-card">
                 <div className="auth-logo">
-                    <img src="/logo.svg" alt="AMPConnect Logo" style={{ width: 60, height: 60, marginBottom: 16 }} />
-                    <h1>AMPConnect</h1>
+                    <img src="/logo_full.jpg" alt="AMPConnect Logo" style={{ height: 60, width: 'auto', marginBottom: 16 }} />
+                    {/* <h1>AMPConnect</h1> */}
                     <p>Masuk ke akun customer Anda</p>
                 </div>
                 <form onSubmit={handleSubmit}>

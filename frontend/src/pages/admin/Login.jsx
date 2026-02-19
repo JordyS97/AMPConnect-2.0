@@ -50,9 +50,9 @@ export default function AdminLogin() {
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         margin: '0 auto 16px', backdropFilter: 'blur(10px)',
                     }}>
-                        <img src="/logo.svg" alt="AMPConnect Logo" style={{ width: 50, height: 50 }} />
+                        <img src="/logo_full.jpg" alt="AMPConnect Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                     </div>
-                    <h1 style={{ WebkitTextFillColor: 'white', background: 'none', WebkitBackgroundClip: 'unset' }}>AMPConnect Admin</h1>
+                    {/* <h1 style={{ WebkitTextFillColor: 'white', background: 'none', WebkitBackgroundClip: 'unset' }}>AMPConnect Admin</h1> */}
                     <p>Portal Administrasi</p>
                 </div>
                 <form onSubmit={handleSubmit}>

@@ -87,18 +87,10 @@ export default function Sidebar({ type = 'customer' }) {
                     ? { transform: 'translateX(-100%)' } : {})
             }}>
                 {/* Logo */}
-                <div style={{ padding: '24px 20px', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <img src="/logo.svg" alt="Logo" style={{ width: 32, height: 32 }} />
-                    <div>
-                        <h1 style={{
-                            fontSize: '1.2rem', fontWeight: 800,
-                            background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
-                            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-                            margin: 0, lineHeight: 1
-                        }}>
-                            AMPConnect
-                        </h1>
-                        <p style={{ fontSize: '0.65rem', color: '#64748b', margin: 0 }}>
+                <div style={{ padding: '24px 20px', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <img src="/logo_full.jpg" alt="Logo" style={{ height: 40, width: 'auto', maxWidth: '100%', objectFit: 'contain' }} />
+                    <div style={{ paddingLeft: 4 }}>
+                        <p style={{ fontSize: '0.65rem', color: '#64748b', margin: 0, marginTop: 4 }}>
                             {type === 'admin' ? 'Admin Portal' : 'Customer Portal'}
                         </p>
                     </div>
