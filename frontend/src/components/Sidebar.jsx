@@ -88,7 +88,7 @@ export default function Sidebar({ type = 'customer' }) {
             }}>
                 {/* Logo */}
                 <div style={{ padding: '24px 20px', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <img src="/logo_transparent.png" alt="Logo" style={{ height: 40, width: 'auto', maxWidth: '100%', objectFit: 'contain' }} />
+                    <img src="/logo_white.png" alt="Logo" style={{ height: 40, width: 'auto', maxWidth: '100%', objectFit: 'contain', filter: 'brightness(0) invert(1)' }} />
                     <div style={{ paddingLeft: 4 }}>
                         <p style={{ fontSize: '0.65rem', color: '#64748b', margin: 0, marginTop: 4 }}>
                             {type === 'admin' ? 'Admin Portal' : 'Customer Portal'}

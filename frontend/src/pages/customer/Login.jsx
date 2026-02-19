@@ -59,7 +59,7 @@ export default function CustomerLogin() {
             }}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '32px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-                        <img src="/logo_transparent.png" alt="AMPConnect" style={{ height: '40px', width: 'auto' }} />
+                        <img src="/logo_white.png" alt="AMPConnect" style={{ height: '40px', width: 'auto', filter: 'brightness(0) invert(1)' }} />
                         <span style={{ fontSize: '24px', fontWeight: '700', letterSpacing: '-0.5px', color: '#fff' }}>AMPConnect</span>
                     </div>
                     <p style={{ color: '#94a3b8', fontSize: '14px', letterSpacing: '0.5px', textTransform: 'uppercase', fontWeight: '500' }}>Customer Portal</p>
