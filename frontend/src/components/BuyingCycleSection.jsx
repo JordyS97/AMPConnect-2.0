@@ -136,7 +136,7 @@ const BuyingCycleSection = ({ data }) => {
                 <div style={{ height: '240px', marginBottom: 16 }}>
                     <Bar data={chartData} options={options} />
                 </div>
-                <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 8 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', padding: 8, background: '#f0fdf4', borderRadius: 8, border: '1px solid #dcfce7', fontSize: '0.9rem' }}>
                         <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--success)' }}></span> 0-30 days</span>
                         <span style={{ fontWeight: 'bold', color: 'var(--success-dark)' }}>Frequent</span>

@@ -56,7 +56,7 @@ const DashboardAnalytics = () => {
     };
 
     return (
-        <div className="main-content" style={{ background: 'linear-gradient(135deg, #f8fafc 0%, #e0f2fe 100%)' }}>
+        <div style={{ width: '100%', minHeight: '100%' }}>
             <div style={{ maxWidth: '100%', margin: '0 auto' }}>
                 <div className="card" style={{ marginBottom: 20, borderLeft: '4px solid var(--primary)' }}>
                     <h1 style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>
@@ -104,8 +104,8 @@ const DashboardAnalytics = () => {
                         {/* 6. Predictive Analytics */}
                         <PredictiveSection data={data.predictive} />
 
-                        {/* 8. Cohort Analysis */}
-                        <CohortAnalysis data={data.cohorts} />
+                        {/* 5. Product Cycles (Moved Here) */}
+                        <ProductCycleTable data={data.productCycles} />
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -120,10 +120,12 @@ const DashboardAnalytics = () => {
 
                         {/* 7. Discount Efficiency */}
                         <DiscountEfficiency data={data.discounts} />
-
-                        {/* 5. Product Cycles */}
-                        <ProductCycleTable data={data.productCycles} />
                     </div>
+                </div>
+
+                {/* 8. Cohort Analysis (Full Width Bottom) */}
+                <div style={{ marginTop: 16 }}>
+                    <CohortAnalysis data={data.cohorts} />
                 </div>
             </div>
         </div>
