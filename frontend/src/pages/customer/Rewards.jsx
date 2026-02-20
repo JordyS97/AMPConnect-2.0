@@ -52,8 +52,9 @@ export default function Rewards() {
 
     const getTierColor = (tier) => {
         switch (tier) {
+            case 'Moon Stone': return '#A78BFA';
+            case 'Diamond': return '#B9F2FF';
             case 'Gold': return '#eab308';
-            case 'Platinum': return '#a855f7';
             default: return '#94a3b8'; // Silver
         }
     };
@@ -69,7 +70,7 @@ export default function Rewards() {
             <div className="card mb-4" style={{ background: 'linear-gradient(to right, #1e293b, #0f172a)', color: 'white' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 20 }}>
                     <div>
-                        <div className="badge" style={{ background: getTierColor(currentTier), color: 'white', marginBottom: 10 }}>
+                        <div className="badge" style={{ background: getTierColor(currentTier), color: currentTier === 'Diamond' || currentTier === 'Silver' ? 'black' : 'white', marginBottom: 10 }}>
                             {currentTier} MEMBER
                         </div>
                         <h2 style={{ fontSize: '2.5rem', marginBottom: 5 }}>{currentPoints} Poin</h2>
@@ -92,7 +93,7 @@ export default function Rewards() {
                             </div>
                             <div style={{ marginTop: 10, fontSize: '0.9rem', opacity: 0.8 }}>
                                 <Zap size={14} style={{ display: 'inline', marginRight: 5 }} />
-                                {tierProgress.pointsNeeded} poin lagi untuk upgrade!
+                                {formatCurrency(tierProgress.salesNeeded)} lagi belanja untuk upgrade!
                             </div>
                         </div>
                     )}

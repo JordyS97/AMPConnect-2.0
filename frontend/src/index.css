@@ -18,9 +18,11 @@
   --tier-silver: #C0C0C0;
   --tier-gold: #FFD700;
   --tier-diamond: #B9F2FF;
+  --tier-moonstone: #A78BFA;
   --tier-silver-bg: #f0f0f0;
   --tier-gold-bg: #fff8e1;
   --tier-diamond-bg: #e0f7fa;
+  --tier-moonstone-bg: #f3e8ff;
 
   /* Neutrals */
   --bg: #f8fafc;

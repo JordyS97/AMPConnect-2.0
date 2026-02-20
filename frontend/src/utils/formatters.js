@@ -28,6 +28,7 @@ export const getTierInfo = (tier) => {
         Silver: { color: '#C0C0C0', bg: '#f0f0f0', icon: '⭐', className: 'silver' },
         Gold: { color: '#FFD700', bg: '#fff8e1', icon: '🌟', className: 'gold' },
         Diamond: { color: '#B9F2FF', bg: '#e0f7fa', icon: '💎', className: 'diamond' },
+        'Moon Stone': { color: '#A78BFA', bg: '#f3e8ff', icon: '🌙', className: 'moon-stone' },
     };
     return tiers[tier] || tiers.Silver;
 };

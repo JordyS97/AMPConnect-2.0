@@ -706,14 +706,23 @@ const uploadSales = async (req, res, next) => {
             }
         }
 
-        // 5. Update customer points
+        // 5. Update customer points & tier
         for (const customerId of affectedCustomerIds) {
             try {
+                // Calculate total points
                 const totalPoints = await pool.query(
                     'SELECT COALESCE(SUM(points_earned), 0) as total FROM transactions WHERE customer_id = $1', [customerId]
                 );
                 const newTotalPoints = parseInt(totalPoints.rows[0].total);
-                const newTier = determineTier(newTotalPoints);
+
+                // Calculate lifetime net sales for tier
+                const lifetimeSalesResult = await pool.query(
+                    'SELECT COALESCE(SUM(net_sales), 0) as total_sales FROM transactions WHERE customer_id = $1', [customerId]
+                );
+                const lifetimeNetSales = parseFloat(lifetimeSalesResult.rows[0].total_sales);
+
+                const newTier = determineTier(lifetimeNetSales);
+
                 await pool.query(
                     'UPDATE customers SET total_points = $1, tier = $2, updated_at = NOW() WHERE id = $3',
                     [newTotalPoints, newTier, customerId]
@@ -1611,10 +1620,57 @@ const fixDatabase = async (req, res) => {
     }
 };
 
+// Recalculate Tiers for Existing Data
+const recalculateTiers = async (req, res, next) => {
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        // First, temporarily drop the CHECK constraint if it exists to allow 'Moon Stone'
+        try {
+            await client.query('ALTER TABLE customers DROP CONSTRAINT IF EXISTS customers_tier_check');
+            // Add it back with the new value
+            await client.query("ALTER TABLE customers ADD CONSTRAINT customers_tier_check CHECK (tier IN ('Silver', 'Gold', 'Diamond', 'Moon Stone'))");
+        } catch (e) {
+            console.error('Schema migration error for check constraint - ignoring if already fixed', e);
+        }
+
+        // Get all customers and their lifetime net sales
+        const customers = await client.query(`
+            SELECT c.id, COALESCE(SUM(t.net_sales), 0) as lifetime_sales
+            FROM customers c
+            LEFT JOIN transactions t ON c.id = t.customer_id
+            GROUP BY c.id
+        `);
+
+        // Need the new functions
+        const { determineTier } = require('../utils/pointsCalculator');
+
+        let updatedCount = 0;
+
+        for (const customer of customers.rows) {
+            const newTier = determineTier(parseFloat(customer.lifetime_sales));
+            await client.query(
+                'UPDATE customers SET tier = $1 WHERE id = $2',
+                [newTier, customer.id]
+            );
+            updatedCount++;
+        }
+
+        await client.query('COMMIT');
+        res.json({ success: true, message: `Berhasil menghitung ulang tier untuk ${updatedCount} pelanggan.` });
+    } catch (err) {
+        await client.query('ROLLBACK');
+        next(err);
+    } finally {
+        client.release();
+    }
+};
+
 module.exports = {
     getDashboard, getSales, getSaleDetail, getStock, adjustStock,
     uploadSales, uploadStock, getUploadHistory, downloadTemplate, generateReport,
     getCustomerAnalytics, getInventoryAnalytics, getSalesAnalytics, getPriceAnalytics,
-    uploadSettingsQR, recalculateFinancials, fixDatabase
+    uploadSettingsQR, recalculateFinancials, fixDatabase, recalculateTiers
 };
 

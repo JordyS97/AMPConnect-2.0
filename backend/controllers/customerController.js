@@ -41,16 +41,21 @@ const getDashboard = async (req, res, next) => {
             [customerId]
         );
 
-        const tierProgress = pointsToNextTier(c.total_points);
+        const { salesToNextTier, TIER_THRESHOLDS } = require('../utils/pointsCalculator');
+        const lifetimeSales = parseFloat(stats.rows[0].total_spent);
+        const tierProgress = salesToNextTier(lifetimeSales);
 
-        // Calculate percentage for Dashboard
+        // Calculate percentage for Dashboard based on net sales
         let percentage = 0;
-        if (c.total_points >= 1500) percentage = 100;
-        else if (c.total_points >= 500) percentage = ((c.total_points - 500) / 1000) * 100;
-        else percentage = (c.total_points / 500) * 100;
+        if (lifetimeSales >= TIER_THRESHOLDS.MOON_STONE) percentage = 100;
+        else if (lifetimeSales >= TIER_THRESHOLDS.DIAMOND) percentage = ((lifetimeSales - TIER_THRESHOLDS.DIAMOND) / (TIER_THRESHOLDS.MOON_STONE - TIER_THRESHOLDS.DIAMOND)) * 100;
+        else if (lifetimeSales >= TIER_THRESHOLDS.GOLD) percentage = ((lifetimeSales - TIER_THRESHOLDS.GOLD) / (TIER_THRESHOLDS.DIAMOND - TIER_THRESHOLDS.GOLD)) * 100;
+        else percentage = (lifetimeSales / TIER_THRESHOLDS.GOLD) * 100;
 
         tierProgress.percentage = Math.round(percentage);
         tierProgress.currentPoints = c.total_points;
+        // Also send current spending level so UI can show it if needed
+        tierProgress.currentSales = lifetimeSales;
 
         res.json({
             success: true,
@@ -65,7 +70,7 @@ const getDashboard = async (req, res, next) => {
                 tierProgress,
                 statistics: {
                     total_transactions: parseInt(stats.rows[0].total_transactions),
-                    total_spent: parseFloat(stats.rows[0].total_spent),
+                    total_spent: lifetimeSales,
                     favorite_part: favPart.rows.length > 0 ? favPart.rows[0].nama_part : '-',
                     member_since: c.created_at,
                 },
@@ -77,7 +82,7 @@ const getDashboard = async (req, res, next) => {
     }
 };
 
-// Get customer profile
+// Get profile logic
 const getProfile = async (req, res, next) => {
     try {
         const customer = await pool.query(
@@ -181,16 +186,24 @@ const getPointsHistory = async (req, res, next) => {
 
         // Get customer total points
         const customer = await pool.query('SELECT total_points, tier FROM customers WHERE id = $1', [req.user.id]);
+        const currentPoints = customer.rows[0].total_points;
+
+        const stats = await pool.query(
+            `SELECT COALESCE(SUM(net_sales), 0) as total_spent FROM transactions WHERE customer_id = $1`,
+            [req.user.id]
+        );
+        const lifetimeSales = parseFloat(stats.rows[0].total_spent);
 
         // Calculate progress
-        const currentPoints = customer.rows[0].total_points;
-        const tierProgress = pointsToNextTier(currentPoints);
+        const { salesToNextTier, TIER_THRESHOLDS } = require('../utils/pointsCalculator');
+        const tierProgress = salesToNextTier(lifetimeSales);
 
-        // Calculate percentage for Points History
+        // Calculate percentage for Points History based on net sales
         let percentage = 0;
-        if (currentPoints >= 1500) percentage = 100;
-        else if (currentPoints >= 500) percentage = ((currentPoints - 500) / 1000) * 100;
-        else percentage = (currentPoints / 500) * 100;
+        if (lifetimeSales >= TIER_THRESHOLDS.MOON_STONE) percentage = 100;
+        else if (lifetimeSales >= TIER_THRESHOLDS.DIAMOND) percentage = ((lifetimeSales - TIER_THRESHOLDS.DIAMOND) / (TIER_THRESHOLDS.MOON_STONE - TIER_THRESHOLDS.DIAMOND)) * 100;
+        else if (lifetimeSales >= TIER_THRESHOLDS.GOLD) percentage = ((lifetimeSales - TIER_THRESHOLDS.GOLD) / (TIER_THRESHOLDS.DIAMOND - TIER_THRESHOLDS.GOLD)) * 100;
+        else percentage = (lifetimeSales / TIER_THRESHOLDS.GOLD) * 100;
         tierProgress.percentage = Math.round(percentage);
 
         res.json({

@@ -64,7 +64,7 @@ export default function Dashboard() {
                             <div style={{ width: `${tierProgress.percentage}%`, height: '100%', background: '#10b981' }}></div>
                         </div>
                         <div style={{ fontSize: '0.8rem', marginTop: 5, opacity: 0.8 }}>
-                            {tierProgress.pointsNeeded > 0 ? `${tierProgress.pointsNeeded} poin lagi` : 'Anda mencapai level tertinggi!'}
+                            {tierProgress.salesNeeded > 0 ? `${formatCurrency(tierProgress.salesNeeded)} lagi` : 'Anda mencapai level tertinggi!'}
                         </div>
                     </div>
                 )}

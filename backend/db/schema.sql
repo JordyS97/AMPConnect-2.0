@@ -33,7 +33,7 @@ CREATE TABLE customers (
   address TEXT,
   password_hash VARCHAR(255),
   total_points INTEGER DEFAULT 0,
-  tier VARCHAR(20) DEFAULT 'Silver' CHECK (tier IN ('Silver', 'Gold', 'Diamond')),
+  tier VARCHAR(20) DEFAULT 'Silver' CHECK (tier IN ('Silver', 'Gold', 'Diamond', 'Moon Stone')),
   is_verified BOOLEAN DEFAULT false,
   status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
   created_at TIMESTAMP DEFAULT NOW(),

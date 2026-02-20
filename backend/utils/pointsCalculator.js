@@ -6,25 +6,31 @@ const calculatePoints = (netSales) => {
     return Math.floor(netSales / 500000);
 };
 
+// Tier Thresholds based on Lifetime Net Sales
+const TIER_THRESHOLDS = {
+    GOLD: 10000000,
+    DIAMOND: 100000000,
+    MOON_STONE: 200000000
+};
+
 /**
- * Determine tier based on total points
- * Silver: 0-499
- * Gold: 500-1499
- * Diamond: 1500+
+ * Determine tier based on total lifetime net sales
  */
-const determineTier = (totalPoints) => {
-    if (totalPoints >= 1500) return 'Diamond';
-    if (totalPoints >= 500) return 'Gold';
+const determineTier = (lifetimeNetSales) => {
+    if (lifetimeNetSales >= TIER_THRESHOLDS.MOON_STONE) return 'Moon Stone';
+    if (lifetimeNetSales >= TIER_THRESHOLDS.DIAMOND) return 'Diamond';
+    if (lifetimeNetSales >= TIER_THRESHOLDS.GOLD) return 'Gold';
     return 'Silver';
 };
 
 /**
- * Get points needed for next tier
+ * Get sales needed for next tier
  */
-const pointsToNextTier = (totalPoints) => {
-    if (totalPoints >= 1500) return { nextTier: null, pointsNeeded: 0 };
-    if (totalPoints >= 500) return { nextTier: 'Diamond', pointsNeeded: 1500 - totalPoints };
-    return { nextTier: 'Gold', pointsNeeded: 500 - totalPoints };
+const salesToNextTier = (lifetimeNetSales) => {
+    if (lifetimeNetSales >= TIER_THRESHOLDS.MOON_STONE) return { nextTier: null, salesNeeded: 0 };
+    if (lifetimeNetSales >= TIER_THRESHOLDS.DIAMOND) return { nextTier: 'Moon Stone', salesNeeded: TIER_THRESHOLDS.MOON_STONE - lifetimeNetSales };
+    if (lifetimeNetSales >= TIER_THRESHOLDS.GOLD) return { nextTier: 'Diamond', salesNeeded: TIER_THRESHOLDS.DIAMOND - lifetimeNetSales };
+    return { nextTier: 'Gold', salesNeeded: TIER_THRESHOLDS.GOLD - lifetimeNetSales };
 };
 
 /**
@@ -35,8 +41,9 @@ const getTierColor = (tier) => {
         Silver: '#C0C0C0',
         Gold: '#FFD700',
         Diamond: '#B9F2FF',
+        'Moon Stone': '#E2E8F0', // Or perhaps a glowing indigo/purple for moon stone
     };
     return colors[tier] || '#C0C0C0';
 };
 
-module.exports = { calculatePoints, determineTier, pointsToNextTier, getTierColor };
+module.exports = { calculatePoints, determineTier, salesToNextTier, getTierColor, TIER_THRESHOLDS };

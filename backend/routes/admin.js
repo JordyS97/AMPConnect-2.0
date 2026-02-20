@@ -103,12 +103,13 @@ const uploadQR = multer({
     limits: { fileSize: 2 * 1024 * 1024 } // 2MB
 });
 
-
 router.post('/settings/qr', uploadLimiter, uploadQR.single('file'), require('../controllers/adminController').uploadSettingsQR);
 
 // Recalculate Financials
-// Recalculate Financials
 router.post('/recalculate', require('../controllers/adminController').recalculateFinancials);
+
+// Recalculate Tiers based on Net Sales
+router.post('/recalculate-tiers', require('../controllers/adminController').recalculateTiers);
 
 // Fix Database Schema
 router.post('/fix-database', require('../controllers/adminController').fixDatabase);
