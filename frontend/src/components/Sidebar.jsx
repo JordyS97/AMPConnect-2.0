@@ -90,7 +90,7 @@ export default function Sidebar({ type = 'customer' }) {
                 <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
                     {/* Logo */}
                     <div style={{ padding: '24px 20px', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start', flexShrink: 0 }}>
-                        <img src="/logo_white.png" alt="Logo" style={{ width: '130px', height: 'auto', objectFit: 'contain', filter: 'brightness(0) invert(1)' }} />
+                        <img src="/logo_white.png" alt="Logo" style={{ width: '180px', height: 'auto', objectFit: 'contain', filter: 'brightness(0) invert(1)' }} />
                         <div style={{ paddingLeft: 4 }}>
                             <p style={{ fontSize: '0.65rem', color: '#64748b', margin: 0, marginTop: 4 }}>
                                 {type === 'admin' ? 'Admin Portal' : 'Customer Portal'}
