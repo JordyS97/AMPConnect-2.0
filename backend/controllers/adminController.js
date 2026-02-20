@@ -11,22 +11,43 @@ const XLSX = require('xlsx');
 // Get inventory analytics
 const getInventoryAnalytics = async (req, res, next) => {
     try {
-        const today = new Date();
+        const { startDate, endDate } = req.query;
+
+        // Date filtering logic
+        let dateFilter = '';
+        const params = [];
+        let paramIndex = 1;
+
+        if (startDate) {
+            dateFilter += ` AND t.tanggal >= $${paramIndex}`;
+            params.push(startDate);
+            paramIndex++;
+        }
+        if (endDate) {
+            dateFilter += ` AND t.tanggal <= $${paramIndex}`;
+            params.push(endDate);
+            paramIndex++;
+        }
+
+        // For health metrics (slow moving/dead stock), we still need reference dates relative to "now" or relative to the end date if provided
+        const today = endDate ? new Date(endDate) : new Date();
         const sixtyDaysAgo = new Date(today);
         sixtyDaysAgo.setDate(today.getDate() - 60);
         const ninetyDaysAgo = new Date(today);
         ninetyDaysAgo.setDate(today.getDate() - 90);
 
-        // 1. Best Performers (Top 20)
+        // 1. Best Performers (Top 20) - Filtered by Date
         const bestRevenue = await pool.query(`
             SELECT ti.no_part, ti.nama_part, SUM(ti.subtotal) as total_value, SUM(ti.qty) as total_qty
             FROM transaction_items ti JOIN transactions t ON ti.transaction_id = t.id
-            GROUP BY ti.no_part, ti.nama_part ORDER BY total_value DESC LIMIT 20`);
+            WHERE 1=1 ${dateFilter}
+            GROUP BY ti.no_part, ti.nama_part ORDER BY total_value DESC LIMIT 20`, params);
 
         const bestQty = await pool.query(`
             SELECT ti.no_part, ti.nama_part, SUM(ti.qty) as total_value, SUM(ti.subtotal) as revenue
             FROM transaction_items ti JOIN transactions t ON ti.transaction_id = t.id
-            GROUP BY ti.no_part, ti.nama_part ORDER BY total_value DESC LIMIT 20`);
+            WHERE 1=1 ${dateFilter}
+            GROUP BY ti.no_part, ti.nama_part ORDER BY total_value DESC LIMIT 20`, params);
 
         // Using p.amount / p.qty as Unit Cost (assuming amount is Total Value)
         // Refactored to use Aggregated Totals: (Total Sales - Total Cost) / Total Sales
@@ -41,10 +62,10 @@ const getInventoryAnalytics = async (req, res, next) => {
             FROM transaction_items ti 
             JOIN transactions t ON ti.transaction_id = t.id
             JOIN parts p ON ti.no_part = p.no_part
-            WHERE ti.price > 0 AND p.qty > 0
+            WHERE ti.price > 0 AND p.qty > 0 ${dateFilter}
             GROUP BY ti.no_part, ti.nama_part 
             HAVING COUNT(ti.id) > 5 
-            ORDER BY avg_gp DESC LIMIT 20`);
+            ORDER BY avg_gp DESC LIMIT 20`, params);
 
         // 2. Worst Performers
         const worstGPPercent = await pool.query(`
@@ -57,10 +78,10 @@ const getInventoryAnalytics = async (req, res, next) => {
             FROM transaction_items ti 
             JOIN transactions t ON ti.transaction_id = t.id
             JOIN parts p ON ti.no_part = p.no_part
-            WHERE ti.price > 0 AND p.qty > 0
+            WHERE ti.price > 0 AND p.qty > 0 ${dateFilter}
             GROUP BY ti.no_part, ti.nama_part 
             HAVING COUNT(ti.id) > 5
-            ORDER BY avg_gp ASC LIMIT 20`);
+            ORDER BY avg_gp ASC LIMIT 20`, params);
 
         const negativeGP = await pool.query(`
              SELECT ti.no_part, ti.nama_part, 
@@ -72,14 +93,13 @@ const getInventoryAnalytics = async (req, res, next) => {
             FROM transaction_items ti 
             JOIN transactions t ON ti.transaction_id = t.id
             JOIN parts p ON ti.no_part = p.no_part
-            WHERE ti.price > 0 AND p.qty > 0 
+            WHERE ti.price > 0 AND p.qty > 0 ${dateFilter}
             GROUP BY ti.no_part, ti.nama_part 
             HAVING (SUM(ti.subtotal) - SUM(ti.qty * (COALESCE(p.amount, 0) / NULLIF(p.qty, 0)))) < 0
-            LIMIT 50`);
+            LIMIT 50`, params);
 
-        // 3. Inventory Health
-        // 3. Inventory Health
-        // Slow Moving: Stock > 0, No Sale in last 60 days
+        // 3. Inventory Health (Snapshot based, so date filter might not apply strictly to stock status, but we can filter 'last sale' logic)
+        // Slow Moving: Stock > 0, No Sale since calculated date
         const slowMoving = await pool.query(`
             SELECT p.no_part, p.nama_part, p.qty, MAX(t.tanggal) as last_sale
             FROM parts p
@@ -110,30 +130,55 @@ const getInventoryAnalytics = async (req, res, next) => {
             FROM transaction_items ti
             JOIN parts p ON ti.no_part = p.no_part
             JOIN transactions t ON ti.transaction_id = t.id
-            GROUP BY p.group_tobpm ORDER BY revenue DESC`);
+            WHERE 1=1 ${dateFilter}
+            GROUP BY p.group_tobpm ORDER BY revenue DESC`, params);
 
-        // 5. Cross Sell (Pairs)
-        const crossSell = await pool.query(`
-            WITH recent_trans AS (SELECT id FROM transactions ORDER BY tanggal DESC LIMIT 500)
-            SELECT t1.no_part as part_a, t1.nama_part as name_a, 
-                   t2.no_part as part_b, t2.nama_part as name_b, 
-                   COUNT(*) as frequency
-            FROM transaction_items t1
-            JOIN transaction_items t2 ON t1.transaction_id = t2.transaction_id
-            WHERE t1.transaction_id IN (SELECT id FROM recent_trans)
-            AND t1.no_part < t2.no_part
-            GROUP BY t1.no_part, t1.nama_part, t2.no_part, t2.nama_part
-            ORDER BY frequency DESC
-            LIMIT 10`);
+        // 5. Cross Sell (Pairs) - Filter by Date if provided, otherwise recent 500
+        let crossSellQuery = '';
+        let crossSellParams = [];
+
+        if (startDate || endDate) {
+            crossSellQuery = `
+                WITH relevant_trans AS (
+                    SELECT id FROM transactions t WHERE 1=1 ${dateFilter}
+                )
+                SELECT t1.no_part as part_a, t1.nama_part as name_a, 
+                       t2.no_part as part_b, t2.nama_part as name_b, 
+                       COUNT(*) as frequency
+                FROM transaction_items t1
+                JOIN transaction_items t2 ON t1.transaction_id = t2.transaction_id
+                WHERE t1.transaction_id IN (SELECT id FROM relevant_trans)
+                AND t1.no_part < t2.no_part
+                GROUP BY t1.no_part, t1.nama_part, t2.no_part, t2.nama_part
+                ORDER BY frequency DESC
+                LIMIT 10`;
+            crossSellParams = params;
+        } else {
+            crossSellQuery = `
+                WITH recent_trans AS (SELECT id FROM transactions ORDER BY tanggal DESC LIMIT 500)
+                SELECT t1.no_part as part_a, t1.nama_part as name_a, 
+                       t2.no_part as part_b, t2.nama_part as name_b, 
+                       COUNT(*) as frequency
+                FROM transaction_items t1
+                JOIN transaction_items t2 ON t1.transaction_id = t2.transaction_id
+                WHERE t1.transaction_id IN (SELECT id FROM recent_trans)
+                AND t1.no_part < t2.no_part
+                GROUP BY t1.no_part, t1.nama_part, t2.no_part, t2.nama_part
+                ORDER BY frequency DESC
+                LIMIT 10`;
+        }
+
+        const crossSell = await pool.query(crossSellQuery, crossSellParams);
 
         // 6. Top Discounted Items
         const topDiscounted = await pool.query(`
              SELECT ti.no_part, ti.nama_part, SUM(ABS(ti.diskon)) as total_discount
              FROM transaction_items ti
-             WHERE ABS(ti.diskon) > 0
+             JOIN transactions t ON ti.transaction_id = t.id
+             WHERE ABS(ti.diskon) > 0 ${dateFilter}
              GROUP BY ti.no_part, ti.nama_part
              ORDER BY total_discount DESC LIMIT 10
-        `);
+        `, params);
 
         res.json({
             success: true,
@@ -928,7 +973,30 @@ const generateReport = async (req, res, next) => {
 // Get customer analytics
 const getCustomerAnalytics = async (req, res, next) => {
     try {
-        const today = new Date();
+        const { startDate, endDate, customer } = req.query;
+
+        // Base filtering
+        let whereClause = 'WHERE 1=1';
+        const params = [];
+        let paramIndex = 1;
+
+        if (startDate) {
+            whereClause += ` AND t.tanggal >= $${paramIndex}`;
+            params.push(startDate);
+            paramIndex++;
+        }
+        if (endDate) {
+            whereClause += ` AND t.tanggal <= $${paramIndex}`;
+            params.push(endDate);
+            paramIndex++;
+        }
+        if (customer) {
+            whereClause += ` AND (c.name ILIKE $${paramIndex} OR c.no_customer ILIKE $${paramIndex})`;
+            params.push(`%${customer}%`);
+            paramIndex++;
+        }
+
+        const today = endDate ? new Date(endDate) : new Date();
         const sixtyDaysAgo = new Date(today);
         sixtyDaysAgo.setDate(today.getDate() - 60);
 
@@ -937,36 +1005,41 @@ const getCustomerAnalytics = async (req, res, next) => {
             SELECT c.name, c.no_customer, SUM(t.net_sales) as total_value, COUNT(t.id) as transactions
             FROM transactions t
             JOIN customers c ON t.customer_id = c.id
-            GROUP BY c.id ORDER BY total_value DESC LIMIT 10
+            ${whereClause}
+            GROUP BY c.id, c.name, c.no_customer ORDER BY total_value DESC LIMIT 10
         `;
         const topFreqQuery = `
             SELECT c.name, c.no_customer, COUNT(t.id) as total_value, SUM(t.net_sales) as revenue
             FROM transactions t
             JOIN customers c ON t.customer_id = c.id
-            GROUP BY c.id ORDER BY total_value DESC LIMIT 10
+            ${whereClause}
+            GROUP BY c.id, c.name, c.no_customer ORDER BY total_value DESC LIMIT 10
         `;
         const topProfitQuery = `
              SELECT c.name, c.no_customer, SUM(t.gross_profit) as total_value, SUM(t.net_sales) as revenue
             FROM transactions t
             JOIN customers c ON t.customer_id = c.id
-            GROUP BY c.id ORDER BY total_value DESC LIMIT 10
+            ${whereClause}
+            GROUP BY c.id, c.name, c.no_customer ORDER BY total_value DESC LIMIT 10
         `;
 
         const [topRevenue, topFreq, topProfit] = await Promise.all([
-            pool.query(topRevenueQuery),
-            pool.query(topFreqQuery),
-            pool.query(topProfitQuery)
+            pool.query(topRevenueQuery, params),
+            pool.query(topFreqQuery, params),
+            pool.query(topProfitQuery, params)
         ]);
 
         // 2. Value Metrics
         const valueMetricsQuery = `
             SELECT 
-                COUNT(DISTINCT customer_id) as total_customers,
-                SUM(net_sales) as total_revenue,
-                SUM(net_sales) / NULLIF(COUNT(DISTINCT customer_id), 0) as arpc
-            FROM transactions
+                COUNT(DISTINCT t.customer_id) as total_customers,
+                SUM(t.net_sales) as total_revenue,
+                SUM(t.net_sales) / NULLIF(COUNT(DISTINCT t.customer_id), 0) as arpc
+            FROM transactions t
+            LEFT JOIN customers c ON t.customer_id = c.id
+            ${whereClause}
         `;
-        const valueMetrics = await pool.query(valueMetricsQuery);
+        const valueMetrics = await pool.query(valueMetricsQuery, params);
         const totalRevenue = parseFloat(valueMetrics.rows[0].total_revenue) || 0;
         const top10Revenue = topRevenue.rows.reduce((sum, row) => sum + parseFloat(row.total_value), 0);
         const concentrationRisk = totalRevenue > 0 ? (top10Revenue / totalRevenue) * 100 : 0;
@@ -974,7 +1047,11 @@ const getCustomerAnalytics = async (req, res, next) => {
         // 3. Behavior (Frequency Distribution)
         const freqDistQuery = `
             WITH customer_freq AS (
-                SELECT customer_id, COUNT(*) as freq FROM transactions GROUP BY customer_id
+                SELECT t.customer_id, COUNT(*) as freq 
+                FROM transactions t
+                LEFT JOIN customers c ON t.customer_id = c.id
+                ${whereClause}
+                GROUP BY t.customer_id
             )
             SELECT 
                 CASE 
@@ -987,19 +1064,40 @@ const getCustomerAnalytics = async (req, res, next) => {
             FROM customer_freq
             GROUP BY bucket
         `;
-        const freqDist = await pool.query(freqDistQuery);
+        const freqDist = await pool.query(freqDistQuery, params);
 
-        // 4. Risk Alerts (Dormant > 60 days)
+        // 4. Risk Alerts (Dormant > 60 days) - This one is tricky with filters. 
+        // Typically "Dormant" means "Has not bought recently". If user sets filter 2023, then everyone is dormant relative to today?
+        // Let's stick to "Dormant relative to NOW", but filtered by customer name search if present.
+        // Date range filter doesn't make much sense for "finding who hasn't bought lately" unless we change the definition of "lately".
+        // But for consistency, let's just respect the Customer Name filter.
+
+        let dormantWhere = 'WHERE MAX(t.tanggal) < $1';
+        let dormantParams = [sixtyDaysAgo];
+        let dIdx = 2;
+
+        if (customer) {
+            dormantWhere += ` AND (c.name ILIKE $${dIdx} OR c.no_customer ILIKE $${dIdx})`;
+            dormantParams.push(`%${customer}%`);
+            dIdx++;
+        }
+
         const dormantQuery = `
             SELECT c.name, c.no_customer, MAX(t.tanggal) as last_purchase,
             EXTRACT(DAY FROM NOW() - MAX(t.tanggal)) as days_inactive
             FROM transactions t
             JOIN customers c ON t.customer_id = c.id
-            GROUP BY c.id
-            HAVING MAX(t.tanggal) < $1
+            GROUP BY c.id, c.name, c.no_customer
+            HAVING MAX(t.tanggal) < $1 
+            ${customer ? `AND (c.name ILIKE $2 OR c.no_customer ILIKE $2)` : ''}
             ORDER BY days_inactive DESC LIMIT 20
         `;
-        const dormant = await pool.query(dormantQuery, [sixtyDaysAgo]);
+
+        // Slightly hacked parameters for dormant query to reuse the $1 logic
+        const dormantParamsFinal = [sixtyDaysAgo];
+        if (customer) dormantParamsFinal.push(`%${customer}%`);
+
+        const dormant = await pool.query(dormantQuery, dormantParamsFinal);
 
         res.json({
             success: true,
@@ -1130,9 +1228,29 @@ const getSalesAnalytics = async (req, res, next) => {
 // Get pricing & discount analytics
 const getPriceAnalytics = async (req, res, next) => {
     try {
-        const today = new Date();
-        const thirtyDaysAgo = new Date(today);
-        thirtyDaysAgo.setDate(today.getDate() - 30);
+        const { startDate, endDate, customer } = req.query;
+
+        let whereClause = 'WHERE 1=1';
+        const params = [];
+        let paramIndex = 1;
+
+        if (startDate) {
+            whereClause += ` AND t.tanggal >= $${paramIndex}`;
+            params.push(startDate);
+            paramIndex++;
+        }
+        if (endDate) {
+            whereClause += ` AND t.tanggal <= $${paramIndex}`;
+            params.push(endDate);
+            paramIndex++;
+        }
+        if (customer) {
+            whereClause += ` AND (c.name ILIKE $${paramIndex} OR t.no_customer ILIKE $${paramIndex})`;
+            params.push(`%${customer}%`);
+            paramIndex++;
+        }
+
+        const today = endDate ? new Date(endDate) : new Date();
         const oneYearAgo = new Date(today);
         oneYearAgo.setMonth(today.getMonth() - 12);
 
@@ -1146,8 +1264,10 @@ const getPriceAnalytics = async (req, res, next) => {
                     t.diskon,
                     (t.net_sales - COALESCE(SUM(ti.qty * (COALESCE(p.amount, 0) / NULLIF(p.qty, 0))), 0)) as profit
                 FROM transactions t
+                LEFT JOIN customers c ON t.customer_id = c.id
                 LEFT JOIN transaction_items ti ON t.id = ti.transaction_id
                 LEFT JOIN parts p ON ti.no_part = p.no_part
+                ${whereClause}
                 GROUP BY t.id, t.net_sales, t.diskon
             )
             SELECT 
@@ -1160,27 +1280,59 @@ const getPriceAnalytics = async (req, res, next) => {
             FROM Recalculated
             GROUP BY type
         `;
-        const impact = await pool.query(impactQuery);
+        const impact = await pool.query(impactQuery, params);
 
         const discountedStats = impact.rows.find(r => r.type === 'Discounted') || { trx_count: 0, total_sales: 0, total_profit: 0, avg_ticket_size: 0, avg_gp_percent: 0 };
         const noDiscountStats = impact.rows.find(r => r.type === 'No Discount') || { trx_count: 0, total_sales: 0, total_profit: 0, avg_ticket_size: 0, avg_gp_percent: 0 };
 
         const totalSales = parseFloat(discountedStats.total_sales) + parseFloat(noDiscountStats.total_sales);
-        const totalDiscountQuery = `SELECT SUM(ABS(diskon)) as total_discount FROM transactions`;
-        const totalDiscountResult = await pool.query(totalDiscountQuery);
+
+        // Total discount based on filtered transactions
+        const totalDiscountQuery = `
+            SELECT SUM(ABS(t.diskon)) as total_discount 
+            FROM transactions t 
+            LEFT JOIN customers c ON t.customer_id = c.id
+            ${whereClause}
+        `;
+        const totalDiscountResult = await pool.query(totalDiscountQuery, params);
         const totalDiscount = parseFloat(totalDiscountResult.rows[0].total_discount || 0);
 
         // 2. Monthly Discount Trend
         // Uses ABS(diskon) and Recalculated GP for checks if needed, but trend just shows dist%
-        const trendQuery = `
-            SELECT TO_CHAR(tanggal, 'YYYY-MM') as month, 
-                   SUM(ABS(diskon)) as total_discount,
-                   (SUM(ABS(diskon)) / NULLIF(SUM(total_faktur), 0)) * 100 as discount_percent
-            FROM transactions
-            WHERE tanggal >= $1
-            GROUP BY month ORDER BY month ASC
-        `;
-        const trend = await pool.query(trendQuery, [oneYearAgo]);
+        // We override the start date filter for the Trend Chart to always show last 12 months (or relevant context), 
+        // OR we can respect the filter. If user selects "Last 7 days", showing a 12 month trend is weird.
+        // Let's Respect the filter IF it is narrower than 12 months, otherwise default to 12 months.
+
+        // Actually, cleaner to "Show trend of the selected period". If selected period is 1 day, it will show 1 point.
+        // If no filter, show last 12 months.
+
+        let trendQuery = '';
+        let trendParams = [];
+
+        if (startDate || endDate) {
+            trendQuery = `
+                SELECT TO_CHAR(t.tanggal, 'YYYY-MM') as month, 
+                       SUM(ABS(t.diskon)) as total_discount,
+                       (SUM(ABS(t.diskon)) / NULLIF(SUM(t.total_faktur), 0)) * 100 as discount_percent
+                FROM transactions t
+                LEFT JOIN customers c ON t.customer_id = c.id
+                ${whereClause}
+                GROUP BY month ORDER BY month ASC
+            `;
+            trendParams = params;
+        } else {
+            trendQuery = `
+                SELECT TO_CHAR(t.tanggal, 'YYYY-MM') as month, 
+                       SUM(ABS(t.diskon)) as total_discount,
+                       (SUM(ABS(t.diskon)) / NULLIF(SUM(t.total_faktur), 0)) * 100 as discount_percent
+                FROM transactions t
+                WHERE t.tanggal >= $1
+                GROUP BY month ORDER BY month ASC
+            `;
+            trendParams = [oneYearAgo];
+        }
+
+        const trend = await pool.query(trendQuery, trendParams);
 
         // 3. Top Discounted Parts (by Amount)
         // Ensure column exists first (Lazy Migration)
@@ -1189,7 +1341,7 @@ const getPriceAnalytics = async (req, res, next) => {
         } catch (e) { /* ignore if exists/error */ }
 
         // 3. Discount vs Profit Scatter Data by Group Material
-        // Matches user's Excel: rows=group_material, Disc%, GP%
+        // Maximum 50 points
         let topPartsResults;
         try {
             // Primary: use transaction_items grouped by group_material
@@ -1207,47 +1359,18 @@ const getPriceAnalytics = async (req, res, next) => {
                     ELSE 0 END as gp_percent,
                     COUNT(DISTINCT ti.no_part) as part_count
                 FROM transaction_items ti
+                JOIN transactions t ON ti.transaction_id = t.id
+                LEFT JOIN customers c ON t.customer_id = c.id
                 LEFT JOIN parts p ON ti.no_part = p.no_part
+                ${whereClause}
                 GROUP BY COALESCE(ti.group_material, p.group_material, 'Unknown')
                 HAVING SUM(ti.subtotal) > 0
                 ORDER BY total_discount DESC LIMIT 50
             `;
-            topPartsResults = await pool.query(topPartsQuery);
-            console.log(`[PriceAnalytics] Scatter by group_material: ${topPartsResults.rows.length} groups`);
+            topPartsResults = await pool.query(topPartsQuery, params);
         } catch (err) {
             console.log(`[PriceAnalytics] Scatter query error:`, err.message);
             topPartsResults = { rows: [] };
-        }
-
-        // Fallback: if transaction_items empty, try from transactions table
-        if (topPartsResults.rows.length === 0) {
-            console.log('[PriceAnalytics] transaction_items empty, trying fallback from transactions...');
-            try {
-                const fallbackQuery = `
-                    SELECT 
-                        'All Sales' as group_material,
-                        SUM(ABS(t.diskon)) as total_discount,
-                        SUM(t.total_faktur) as total_sales,
-                        SUM(t.net_sales) as total_revenue,
-                        CASE WHEN SUM(t.total_faktur) > 0 THEN
-                             (SUM(ABS(t.diskon)) / SUM(t.total_faktur)) * 100
-                        ELSE 0 END as discount_percent,
-                        CASE WHEN SUM(t.net_sales) > 0 THEN
-                             (SUM(COALESCE(t.gross_profit, 0)) / SUM(t.net_sales)) * 100
-                        ELSE 0 END as gp_percent,
-                        COUNT(*) as part_count
-                    FROM transactions t
-                    WHERE t.net_sales > 0
-                `;
-                topPartsResults = await pool.query(fallbackQuery);
-                console.log(`[PriceAnalytics] Fallback results: ${topPartsResults.rows.length} rows`);
-                if (topPartsResults.rows.length > 0) {
-                    console.log('[PriceAnalytics] Fallback sample:', topPartsResults.rows[0]);
-                }
-            } catch (err2) {
-                console.log('[PriceAnalytics] Fallback also failed:', err2.message);
-                topPartsResults = { rows: [] };
-            }
         }
 
         const topParts = {
@@ -1269,19 +1392,21 @@ const getPriceAnalytics = async (req, res, next) => {
                    SUM(t.net_sales) as total_revenue
             FROM transactions t
             JOIN customers c ON t.customer_id = c.id
+            ${whereClause}
             GROUP BY c.id, c.name
             ORDER BY total_discount DESC, total_revenue DESC LIMIT 10
         `;
-        const topCustomers = await pool.query(topCustomersQuery);
+        const topCustomers = await pool.query(topCustomersQuery, params);
 
         // 5. Alerts
         // Excessive Discount (> 50%)
         const highDiscountAlerts = await pool.query(`
-            SELECT no_faktur, tanggal, ABS(diskon) as total_discount, (ABS(diskon) / NULLIF(total_faktur, 0)) * 100 as discount_percent
-            FROM transactions
-            WHERE (ABS(diskon) / NULLIF(total_faktur, 0)) > 0.5
-            ORDER BY tanggal DESC LIMIT 20
-        `);
+            SELECT t.no_faktur, t.tanggal, ABS(t.diskon) as total_discount, (ABS(t.diskon) / NULLIF(t.total_faktur, 0)) * 100 as discount_percent
+            FROM transactions t
+            LEFT JOIN customers c ON t.customer_id = c.id
+            ${whereClause} AND (ABS(t.diskon) / NULLIF(t.total_faktur, 0)) > 0.5
+            ORDER BY t.tanggal DESC LIMIT 20
+        `, params);
 
         // Negative Profit (Below Cost)
         // RECALCULATED using Part Cost
@@ -1295,7 +1420,8 @@ const getPriceAnalytics = async (req, res, next) => {
                 FROM transactions t
                 JOIN transaction_items ti ON t.id = ti.transaction_id
                 JOIN parts p ON ti.no_part = p.no_part
-                WHERE p.qty > 0
+                LEFT JOIN customers c ON t.customer_id = c.id
+                ${whereClause} AND p.qty > 0
                 GROUP BY t.id, t.no_faktur, t.tanggal, t.net_sales
             )
             SELECT 
@@ -1307,7 +1433,7 @@ const getPriceAnalytics = async (req, res, next) => {
             FROM RecalculatedGP
             WHERE (net_sales - est_cost) < 0
             ORDER BY tanggal DESC LIMIT 20
-        `);
+        `, params);
 
         res.json({
             success: true,

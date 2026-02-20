@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Bar, Line, Doughnut, Scatter } from 'react-chartjs-2';
-import { Tag, TrendingDown, AlertTriangle, DollarSign, Percent, ArrowRight } from 'lucide-react';
+import { Tag, TrendingDown, AlertTriangle, DollarSign, Percent, ArrowRight, Search } from 'lucide-react';
 import { formatCurrency, formatNumber, formatPercent } from '../../utils/formatters';
 import { useToast } from '../../components/Toast';
 import api from '../../api/axios';
@@ -8,6 +8,7 @@ import api from '../../api/axios';
 export default function PricingAnalytics() {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [filters, setFilters] = useState({ startDate: '', endDate: '', customer: '' });
     const { addToast } = useToast();
 
     const handleFixDatabase = async () => {
@@ -29,20 +30,22 @@ export default function PricingAnalytics() {
     };
 
     useEffect(() => {
-        const fetchAnalytics = async () => {
-            try {
-                const res = await api.get('/admin/price-analytics');
-                setData(res.data.data);
-            } catch (err) {
-                addToast('Gagal memuat analitik harga', 'error');
-            } finally {
-                setLoading(false);
-            }
-        };
         fetchAnalytics();
     }, []);
 
-    if (loading) return <div className="loading-spinner"><div className="spinner"></div></div>;
+    const fetchAnalytics = async () => {
+        setLoading(true);
+        try {
+            const res = await api.get('/admin/price-analytics', { params: filters });
+            setData(res.data.data);
+        } catch (err) {
+            addToast('Gagal memuat analitik harga', 'error');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    if (loading && !data) return <div className="loading-spinner"><div className="spinner"></div></div>;
     if (!data) return <div className="empty-state"><h3>Belum ada data analitik harga</h3></div>;
 
     const { metrics, impact, trend, lists, alerts } = data;
@@ -92,6 +95,30 @@ export default function PricingAnalytics() {
                 >
                     <AlertTriangle size={16} /> Fix Database Schema
                 </button>
+            </div>
+
+            {/* Filter Section */}
+            <div className="card" style={{ marginBottom: 24 }}>
+                <div className="search-filters" style={{ marginBottom: 0 }}>
+                    <div className="form-group" style={{ margin: 0, flex: 1, minWidth: 140 }}>
+                        <label style={{ fontSize: '0.75rem' }}>Dari Tanggal</label>
+                        <input type="date" className="form-control" value={filters.startDate}
+                            onChange={(e) => setFilters({ ...filters, startDate: e.target.value })} />
+                    </div>
+                    <div className="form-group" style={{ margin: 0, flex: 1, minWidth: 140 }}>
+                        <label style={{ fontSize: '0.75rem' }}>Sampai Tanggal</label>
+                        <input type="date" className="form-control" value={filters.endDate}
+                            onChange={(e) => setFilters({ ...filters, endDate: e.target.value })} />
+                    </div>
+                    <div className="form-group" style={{ margin: 0, flex: 2, minWidth: 200 }}>
+                        <label style={{ fontSize: '0.75rem' }}>Customer</label>
+                        <input type="text" className="form-control" placeholder="Cari nama/no. customer"
+                            value={filters.customer} onChange={(e) => setFilters({ ...filters, customer: e.target.value })} />
+                    </div>
+                    <button onClick={fetchAnalytics} className="btn btn-primary" style={{ alignSelf: 'flex-end' }}>
+                        <Search size={16} /> Filter
+                    </button>
+                </div>
             </div>
 
             {/* KPI Cards */}

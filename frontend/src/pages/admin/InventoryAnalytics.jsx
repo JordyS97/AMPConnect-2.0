@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Bar, Pie, Doughnut } from 'react-chartjs-2';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement } from 'chart.js';
-import { Package, TrendingUp, TrendingDown, AlertCircle, Layers, Link as LinkIcon } from 'lucide-react';
+import { Package, TrendingUp, TrendingDown, AlertCircle, Layers, Link as LinkIcon, Search } from 'lucide-react';
 
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement);
 import { formatCurrency, formatNumber, formatPercent } from '../../utils/formatters';
@@ -12,24 +12,27 @@ export default function InventoryAnalytics() {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [bestTab, setBestTab] = useState('revenue'); // revenue, qty, gp_percent
+    const [filters, setFilters] = useState({ startDate: '', endDate: '' });
     const { addToast } = useToast();
 
     useEffect(() => {
-        const fetchAnalytics = async () => {
-            try {
-                const res = await api.get('/admin/inventory-analytics');
-                setData(res.data.data);
-            } catch (err) {
-                addToast('Gagal memuat analitik produk', 'error');
-            } finally {
-                setLoading(false);
-            }
-        };
         fetchAnalytics();
     }, []);
 
-    if (loading) return <div className="loading-spinner"><div className="spinner"></div></div>;
-    if (!data) return <div className="empty-state"><h3>Belum ada data analitik produk</h3></div>;
+    const fetchAnalytics = async () => {
+        setLoading(true);
+        try {
+            const res = await api.get('/admin/inventory-analytics', { params: filters });
+            setData(res.data.data);
+        } catch (err) {
+            addToast('Gagal memuat analitik produk', 'error');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    if (loading && !data) return <div className="loading-spinner"><div className="spinner"></div></div>;
+    if (!data && !loading) return <div className="empty-state"><h3>Belum ada data analitik produk</h3></div>;
 
     const { best, worst, health, category, cross_sell } = data;
 
@@ -51,6 +54,25 @@ export default function InventoryAnalytics() {
             <div className="page-header" style={{ marginBottom: 32 }}>
                 <h1 style={{ fontSize: '1.8rem', fontWeight: 800, letterSpacing: '-0.5px' }}>Product Performance Dashboard</h1>
                 <p style={{ marginTop: 8, fontSize: '1rem' }}>Real-time inventory insights and sales analytics</p>
+            </div>
+
+            {/* Filter Section */}
+            <div className="glass-card" style={{ marginBottom: 32, padding: 20 }}>
+                <div className="search-filters" style={{ marginBottom: 0 }}>
+                    <div className="form-group" style={{ margin: 0, flex: 0, minWidth: 200 }}>
+                        <label style={{ fontSize: '0.75rem' }}>Dari Tanggal</label>
+                        <input type="date" className="form-control" value={filters.startDate}
+                            onChange={(e) => setFilters({ ...filters, startDate: e.target.value })} />
+                    </div>
+                    <div className="form-group" style={{ margin: 0, flex: 0, minWidth: 200 }}>
+                        <label style={{ fontSize: '0.75rem' }}>Sampai Tanggal</label>
+                        <input type="date" className="form-control" value={filters.endDate}
+                            onChange={(e) => setFilters({ ...filters, endDate: e.target.value })} />
+                    </div>
+                    <button onClick={fetchAnalytics} className="btn btn-primary" style={{ alignSelf: 'flex-end' }}>
+                        <Search size={16} /> Filter
+                    </button>
+                </div>
             </div>
 
             {/* Inventory Health Cards (Top Row - Optional/Keep subtle) */}
