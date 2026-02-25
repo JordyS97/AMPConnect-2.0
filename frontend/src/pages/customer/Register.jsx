@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useToast } from '../../components/Toast';
 import { User, Mail, Phone, Lock, Hash, Eye, EyeOff } from 'lucide-react';
 import api from '../../api/axios';
+import { sanitizeInput } from '../../utils/sanitize';
 
 export default function CustomerRegister() {
     const [form, setForm] = useState({ no_customer: '', name: '', email: '', phone: '', password: '', confirmPassword: '' });
@@ -49,9 +50,10 @@ export default function CustomerRegister() {
         if (!validate()) return;
         setLoading(true);
         try {
-            const res = await api.post('/auth/register', form);
+            const sanitizedForm = sanitizeInput(form);
+            const res = await api.post('/auth/register', sanitizedForm);
             addToast(res.data.message, 'success');
-            navigate('/customer/verify-otp', { state: { email: form.email } });
+            navigate('/customer/verify-otp', { state: { email: sanitizedForm.email } });
         } catch (err) {
             addToast(err.response?.data?.message || 'Registrasi gagal', 'error');
         } finally {

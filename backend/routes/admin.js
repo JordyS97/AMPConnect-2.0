@@ -13,6 +13,11 @@ const {
     getCustomers, addCustomer, editCustomer, resetCustomerPassword, toggleCustomerStatus, deleteCustomer, uploadCustomers,
     getAdmins, createAdmin, editAdmin, getActivityLogs
 } = require('../controllers/usersController');
+const { validate } = require('../middleware/validator');
+const {
+    addCustomerSchema, editCustomerSchema, resetPasswordSchema, toggleStatusSchema,
+    adminCreateSchema, adminEditSchema
+} = require('../utils/schemas');
 
 // Multer config
 const storage = multer.diskStorage({
@@ -56,17 +61,17 @@ router.get('/upload/template/:type', downloadTemplate);
 
 // Users - Customers
 router.get('/users/customers', getCustomers);
-router.post('/users/customers', addCustomer);
+router.post('/users/customers', validate(addCustomerSchema, 'body'), addCustomer);
 router.post('/users/customers/upload', uploadLimiter, upload.single('file'), uploadCustomers);
-router.put('/users/customers/:id', editCustomer);
-router.put('/users/customers/:id/reset-password', resetCustomerPassword);
-router.put('/users/customers/:id/status', toggleCustomerStatus);
+router.put('/users/customers/:id', validate(editCustomerSchema, 'body'), editCustomer);
+router.put('/users/customers/:id/reset-password', validate(resetPasswordSchema, 'body'), resetCustomerPassword);
+router.put('/users/customers/:id/status', validate(toggleStatusSchema, 'body'), toggleCustomerStatus);
 router.delete('/users/customers/:id', deleteCustomer);
 
 // Users - Admins
 router.get('/users/admins', getAdmins);
-router.post('/users/admins', createAdmin);
-router.put('/users/admins/:id', editAdmin);
+router.post('/users/admins', validate(adminCreateSchema, 'body'), createAdmin);
+router.put('/users/admins/:id', validate(adminEditSchema, 'body'), editAdmin);
 
 // Activity Logs
 router.get('/users/logs', getActivityLogs);

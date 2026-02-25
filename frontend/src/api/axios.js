@@ -1,11 +1,11 @@
 import axios from 'axios';
+import { secureStorage } from '../utils/secureStorage';
 
 const getBaseUrl = () => {
     let url = import.meta.env.VITE_API_URL || '/api';
     if (url !== '/api' && !url.endsWith('/api')) {
         url = url.endsWith('/') ? `${url}api` : `${url}/api`;
     }
-    console.log('🔌 API Base URL:', url); // Debug log
     return url;
 };
 
@@ -16,22 +16,26 @@ const api = axios.create({
 
 // Add auth token to requests
 api.interceptors.request.use((config) => {
-    const token = localStorage.getItem('token');
+    const token = secureStorage.getItem('token');
     if (token) {
         config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
 });
 
-// Handle token expiration
+// Handle token expiration & unauthorized access
 api.interceptors.response.use(
     (response) => response,
     (error) => {
-        if (error.response?.status === 401) {
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
+        if (error.response && [401, 403].includes(error.response.status)) {
+            secureStorage.removeItem('token');
+            secureStorage.removeItem('user');
+
+            // Redirect based on current portal
             const isAdmin = window.location.pathname.startsWith('/admin');
-            window.location.href = isAdmin ? '/admin/login' : '/customer/login';
+            if (window.location.pathname !== '/admin/login' && window.location.pathname !== '/customer/login') {
+                window.location.href = isAdmin ? '/admin/login' : '/customer/login';
+            }
         }
         return Promise.reject(error);
     }

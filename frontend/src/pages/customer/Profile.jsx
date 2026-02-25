@@ -5,6 +5,7 @@ import TierBadge from '../../components/TierBadge';
 import { Save, Lock, Eye, EyeOff } from 'lucide-react';
 import { formatCurrency, formatDate, formatNumber } from '../../utils/formatters';
 import api from '../../api/axios';
+import { sanitizeInput } from '../../utils/sanitize';
 
 export default function Profile() {
     const [activeTab, setActiveTab] = useState('info');
@@ -45,8 +46,9 @@ export default function Profile() {
     const handleSaveProfile = async () => {
         setSaving(true);
         try {
-            await api.put('/customer/profile', form);
-            updateUser({ name: form.name });
+            const sanitizedForm = sanitizeInput(form);
+            await api.put('/customer/profile', sanitizedForm);
+            updateUser({ name: sanitizedForm.name });
             addToast('Profil berhasil diperbarui', 'success');
         } catch (err) {
             addToast(err.response?.data?.message || 'Gagal menyimpan profil', 'error');

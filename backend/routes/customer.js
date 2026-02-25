@@ -6,13 +6,15 @@ const {
     getPointsHistory, getTransactions, getTrends,
     getFavoriteParts, getComparison, getYearEndReport
 } = require('../controllers/customerController');
+const { validate } = require('../middleware/validator');
+const { updateProfileSchema, changePasswordSchema } = require('../utils/schemas');
 
 router.use(verifyToken, isCustomer);
 
 router.get('/dashboard', getDashboard);
 router.get('/profile', getProfile);
-router.put('/profile', updateProfile);
-router.put('/password', changePassword);
+router.put('/profile', validate(updateProfileSchema, 'body'), updateProfile);
+router.put('/password', validate(changePasswordSchema, 'body'), changePassword);
 router.get('/points/history', getPointsHistory);
 router.get('/transactions', getTransactions);
 router.get('/trends', getTrends);

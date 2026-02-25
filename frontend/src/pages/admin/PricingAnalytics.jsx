@@ -4,6 +4,7 @@ import { Tag, TrendingDown, AlertTriangle, DollarSign, Percent, ArrowRight, Sear
 import { formatCurrency, formatNumber, formatPercent } from '../../utils/formatters';
 import { useToast } from '../../components/Toast';
 import api from '../../api/axios';
+import { secureStorage } from '../../utils/secureStorage';
 
 export default function PricingAnalytics() {
     const [data, setData] = useState(null);
@@ -14,7 +15,7 @@ export default function PricingAnalytics() {
     const handleFixDatabase = async () => {
         if (!confirm('This will attempt to repair database schema. Continue?')) return;
         try {
-            const token = localStorage.getItem('token');
+            const token = secureStorage.getItem('token');
             const res = await api.post('/admin/fix-database', {}, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });

@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const errorHandler = require('./middleware/errorHandler');
 const { apiLimiter } = require('./middleware/rateLimiter');
+const helmet = require('helmet');
 
 // Ensure uploads directory exists
 const uploadsDir = path.join(__dirname, 'uploads');
@@ -15,26 +16,13 @@ const app = express();
 // Trust proxy (required for Render, Heroku, etc. behind reverse proxy)
 app.set('trust proxy', 1);
 
-// CORS - support multiple origins including Vercel preview deployments
-const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173,https://ampconnect.vercel.app').split(',').map(o => o.trim());
+// Security Headers & Hide Tech Stack
+app.use(helmet());
+app.disable('x-powered-by');
+
+// CORS - Strict Production Configuration
 app.use(cors({
-    origin: function (origin, callback) {
-        // Allow requests with no origin (mobile apps, curl, etc.)
-        if (!origin) return callback(null, true);
-        // Check exact match or Vercel preview URL pattern
-        const isAllowed = allowedOrigins.some(allowed => {
-            if (origin === allowed) return true;
-            // Match Vercel preview URLs: https://project-name-xxx-user.vercel.app
-            const domain = allowed.replace('https://', '').replace('.vercel.app', '');
-            if (origin.includes(domain) && origin.endsWith('.vercel.app')) return true;
-            return false;
-        });
-        if (isAllowed) {
-            callback(null, true);
-        } else {
-            callback(new Error('Not allowed by CORS'));
-        }
-    },
+    origin: process.env.CORS_ORIGIN || 'https://ampconnect.vercel.app',
     credentials: true,
 }));
 
