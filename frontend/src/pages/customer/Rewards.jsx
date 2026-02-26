@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Bar } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js';
 import api from '../../api/axios';
-import { formatDate } from '../../utils/formatters';
+import { formatDate, formatCurrency } from '../../utils/formatters';
 import { useToast } from '../../components/Toast';
 import { Award, Zap, Gift } from 'lucide-react';
 
