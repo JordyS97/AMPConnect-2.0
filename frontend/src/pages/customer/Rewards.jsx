@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Bar } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js';
 import api from '../../api/axios';
-import { formatDate, formatCurrency } from '../../utils/formatters';
+import { formatDate } from '../../utils/formatters';
 import { useToast } from '../../components/Toast';
 import { Award, Zap, Gift } from 'lucide-react';
 
@@ -36,7 +36,8 @@ export default function Rewards() {
     if (loading) return <div className="loading-spinner"><div className="spinner"></div></div>;
     if (!pointsData || !trendsData) return <div>Data tidak tersedia</div>;
 
-    const { history, total, totalPages, currentPoints, currentTier, tierProgress } = pointsData;
+    const { history, total, totalPages, currentPoints, tierProgress } = pointsData;
+    const currentTier = pointsData.currentTier || 'Silver';
     const { monthlyPoints } = trendsData;
 
     // Chart Data
@@ -44,7 +45,7 @@ export default function Rewards() {
         labels: monthlyPoints?.map(d => d.month) || [],
         datasets: [{
             label: 'Poin Didapat',
-            data: monthlyPoints?.map(d => d.total) || [],
+            data: monthlyPoints?.map(d => Number(d.total)) || [],
             backgroundColor: '#fbbf24',
             borderRadius: 4
         }]
@@ -57,6 +58,10 @@ export default function Rewards() {
             case 'Gold': return '#eab308';
             default: return '#94a3b8'; // Silver
         }
+    };
+
+    const formatCurrencyLocal = (amount) => {
+        return 'Rp ' + Number(amount || 0).toLocaleString('id-ID');
     };
 
     return (
@@ -93,7 +98,7 @@ export default function Rewards() {
                             </div>
                             <div style={{ marginTop: 10, fontSize: '0.9rem', opacity: 0.8 }}>
                                 <Zap size={14} style={{ display: 'inline', marginRight: 5 }} />
-                                {formatCurrency(tierProgress.salesNeeded)} lagi belanja untuk upgrade!
+                                {formatCurrencyLocal(tierProgress.salesNeeded)} lagi belanja untuk upgrade!
                             </div>
                         </div>
                     )}
