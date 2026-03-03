@@ -1565,7 +1565,7 @@ const recalculateFinancials = async (req, res, next) => {
         // 5. Recalculate Points (assuming 1 point per 10,000 net sales)
         await client.query(`
              UPDATE transactions
-             SET points_earned = FLOOR(net_sales / 10000)
+             SET points_earned = FLOOR(net_sales / 500000)
         `);
 
         await client.query('COMMIT');

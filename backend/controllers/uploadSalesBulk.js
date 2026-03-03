@@ -44,7 +44,7 @@ async function bulkProcessSales(pool, invoiceGroups, invoices, customerMap, pars
             const customerId = customerMap[noCustomer] || null;
             if (customerId) affectedCustomerIds.add(customerId);
             const gpPercent = netSales > 0 ? (grossProfit / netSales) * 100 : 0;
-            const pointsEarned = Math.floor(netSales / 10000);
+            const pointsEarned = Math.floor(netSales / 500000);
             txData.push({ noFaktur, tanggal, customerId, noCustomer, tipeFaktur, totalFaktur, diskon, netSales, gpPercent, grossProfit, pointsEarned, items });
         } catch (err) {
             failedCount++;

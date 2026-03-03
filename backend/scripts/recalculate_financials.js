@@ -37,7 +37,7 @@ const recalculate = async () => {
         `);
 
         console.log('5. Recalculating Points...');
-        await client.query(`UPDATE transactions SET points_earned = FLOOR(net_sales / 10000)`);
+        await client.query(`UPDATE transactions SET points_earned = FLOOR(net_sales / 500000)`);
 
         await client.query('COMMIT');
         console.log('SUCCESS: Financials recalculated successfully.');
