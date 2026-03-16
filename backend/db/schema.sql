@@ -89,7 +89,9 @@ CREATE TABLE transaction_items (
   nama_part VARCHAR(255),
   qty INTEGER DEFAULT 0,
   price DECIMAL(20,2) DEFAULT 0,
-  subtotal DECIMAL(20,2) DEFAULT 0
+  subtotal DECIMAL(20,2) DEFAULT 0,
+  diskon DECIMAL(15,2) DEFAULT 0,
+  cost_price DECIMAL(20,2) DEFAULT 0
 );
 
 -- Upload history
