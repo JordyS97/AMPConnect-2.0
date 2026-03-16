@@ -91,7 +91,9 @@ CREATE TABLE transaction_items (
   price DECIMAL(20,2) DEFAULT 0,
   subtotal DECIMAL(20,2) DEFAULT 0,
   diskon DECIMAL(15,2) DEFAULT 0,
-  cost_price DECIMAL(20,2) DEFAULT 0
+  cost_price DECIMAL(20,2) DEFAULT 0,
+  group_material VARCHAR(255),
+  gross_profit DECIMAL(20,2) DEFAULT 0
 );
 
 -- Upload history
