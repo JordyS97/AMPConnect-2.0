@@ -31,12 +31,19 @@ export default function AdminDashboard() {
     if (loading) return <div className="loading-spinner"><div className="spinner"></div></div>;
     if (!data) return <div className="empty-state"><h3>Tidak ada data</h3></div>;
 
-    const { todayStats, salesTrend, salesByGroup, topParts, monthlyComparison, alerts } = data;
+    const { todayStats, salesTrend, salesByGroup, topParts, sixMonthsTrend, alerts } = data;
 
     // Calculate trends (mock logic or derived where possible)
-    const salesGrowth = monthlyComparison.last_month > 0
-        ? ((monthlyComparison.this_month - monthlyComparison.last_month) / monthlyComparison.last_month) * 100
-        : 100;
+    let salesGrowth = 100;
+    if (sixMonthsTrend && sixMonthsTrend.length >= 2) {
+        const thisMonth = sixMonthsTrend[sixMonthsTrend.length - 1].total_sales;
+        const lastMonth = sixMonthsTrend[sixMonthsTrend.length - 2].total_sales;
+        if (lastMonth > 0) {
+            salesGrowth = ((thisMonth - lastMonth) / lastMonth) * 100;
+        } else if (thisMonth === 0) {
+            salesGrowth = 0;
+        }
+    }
 
     // Chart Data Configs
     const areaChartData = {
@@ -75,14 +82,14 @@ export default function AdminDashboard() {
     };
 
     const monthCompData = {
-        labels: ['Last Month', 'This Month'],
+        labels: sixMonthsTrend ? sixMonthsTrend.map(t => t.month_label) : [],
         datasets: [{
-            data: [monthlyComparison.last_month, monthlyComparison.this_month],
-            backgroundColor: ['#e2e8f0', '#2563eb'],
+            data: sixMonthsTrend ? sixMonthsTrend.map(t => t.total_sales) : [],
+            backgroundColor: sixMonthsTrend ? sixMonthsTrend.map((_, i) => i === sixMonthsTrend.length - 1 ? '#2563eb' : '#e2e8f0') : [],
             barPercentage: 0.8,
             categoryPercentage: 0.9,
             borderRadius: 8,
-            barThickness: 60
+            barThickness: sixMonthsTrend && sixMonthsTrend.length > 2 ? 30 : 60
         }]
     };
 
@@ -283,7 +290,7 @@ export default function AdminDashboard() {
                 {/* Monthly Comparison */}
                 <div className="glass-card">
                     <div style={{ marginBottom: 24 }}>
-                        <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: '#1e293b' }}>Monthly Comparison</h3>
+                        <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: '#1e293b' }}>6-Month Sales Trend</h3>
                         <p style={{ fontSize: '0.85rem', color: '#64748b' }}>Growth vs Previous Month</p>
                     </div>
 

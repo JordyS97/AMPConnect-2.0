@@ -251,15 +251,23 @@ const getDashboard = async (req, res, next) => {
        GROUP BY ti.no_part, ti.nama_part ORDER BY total_value DESC LIMIT 10`
         );
 
-        // Monthly comparison (this month vs last month)
-        const monthlyComparison = await pool.query(
-            `SELECT 
-        COALESCE(SUM(CASE WHEN EXTRACT(MONTH FROM tanggal) = EXTRACT(MONTH FROM NOW()) 
-          AND EXTRACT(YEAR FROM tanggal) = EXTRACT(YEAR FROM NOW()) THEN net_sales END), 0) as this_month,
-        COALESCE(SUM(CASE WHEN EXTRACT(MONTH FROM tanggal) = EXTRACT(MONTH FROM NOW() - INTERVAL '1 month') 
-          AND EXTRACT(YEAR FROM tanggal) = EXTRACT(YEAR FROM NOW() - INTERVAL '1 month') THEN net_sales END), 0) as last_month
-       FROM transactions`
-        );
+        // 6-Month sales trend
+        const sixMonthsTrend = await pool.query(`
+            WITH months AS (
+                SELECT generate_series(
+                    DATE_TRUNC('month', NOW()) - INTERVAL '5 months',
+                    DATE_TRUNC('month', NOW()),
+                    '1 month'
+                ) AS month_date
+            )
+            SELECT 
+                TO_CHAR(m.month_date, 'Mon') as month_label,
+                COALESCE(SUM(t.net_sales), 0) as total_sales
+            FROM months m
+            LEFT JOIN transactions t ON DATE_TRUNC('month', t.tanggal) = m.month_date
+            GROUP BY m.month_date
+            ORDER BY m.month_date ASC
+        `);
 
         // Alerts
         const lowStock = await pool.query('SELECT COUNT(*) FROM parts WHERE qty > 0 AND qty <= 20');
@@ -279,7 +287,7 @@ const getDashboard = async (req, res, next) => {
                 salesTrend: salesTrend.rows,
                 salesByGroup: salesByGroup.rows.map(r => ({ ...r, total: parseFloat(r.total) })),
                 topParts: topParts.rows.map(r => ({ ...r, total_value: parseFloat(r.total_value) })),
-                monthlyComparison: monthlyComparison.rows[0],
+                sixMonthsTrend: sixMonthsTrend.rows.map(r => ({ month_label: r.month_label, total_sales: parseFloat(r.total_sales) })),
                 alerts: {
                     low_stock: parseInt(lowStock.rows[0].count),
                     out_of_stock: parseInt(outOfStock.rows[0].count),
