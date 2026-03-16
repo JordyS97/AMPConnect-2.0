@@ -294,19 +294,17 @@ export default function AdminDashboard() {
                         <p style={{ fontSize: '0.85rem', color: '#64748b' }}>Growth vs Previous Month</p>
                     </div>
 
-                    <div style={{ height: 220, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', gap: 40, paddingBottom: 20 }}>
+                    <div style={{ height: 220, width: '100%', position: 'relative', marginBottom: 16 }}>
                         <Bar
                             data={monthCompData}
                             options={{
                                 responsive: true,
                                 maintainAspectRatio: false,
-                                plugins: { legend: { display: false }, tooltip: { enabled: false } },
+                                plugins: { legend: { display: false }, tooltip: { enabled: true } },
                                 scales: {
                                     x: { grid: { display: false }, ticks: { color: '#64748b', font: { weight: 500 } } },
                                     y: { display: false }
                                 },
-                                barPercentage: 0.8, // Increased for wider bars/less gap
-                                categoryPercentage: 0.9
                             }}
                         />
                     </div>
