@@ -54,18 +54,17 @@ const applyIndices = require('./utils/dbOptimizer');
 
 const PORT = process.env.PORT || 5000;
 
-// Optimized Startup
-const startServer = async () => {
-    // 1. Optimize DB
-    await applyIndices();
-
-    // 2. Start Listening
-    app.listen(PORT, () => {
-        console.log(`\n🚀 AMPConnect API Server running on port ${PORT}`);
-        console.log(`📍 http://localhost:${PORT}/api/health\n`);
-    });
-};
-
-startServer();
+// In Vercel serverless, we just export the app.
+// Locally (or on Render), we start the HTTP server.
+if (!process.env.VERCEL) {
+    const startServer = async () => {
+        await applyIndices();
+        app.listen(PORT, () => {
+            console.log(`\n🚀 AMPConnect API Server running on port ${PORT}`);
+            console.log(`📍 http://localhost:${PORT}/api/health\n`);
+        });
+    };
+    startServer();
+}
 
 module.exports = app;

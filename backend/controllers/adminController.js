@@ -2,7 +2,7 @@ const pool = require('../config/db');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const { parseExcelFile, validateSalesColumns, validateStockColumns, createSalesTemplate, createStockTemplate, normalizeSalesRow } = require('../utils/excelParser');
+const { parseExcelFile, parseExcelBuffer, validateSalesColumns, validateStockColumns, createSalesTemplate, createStockTemplate, normalizeSalesRow } = require('../utils/excelParser');
 
 const { calculatePoints, determineTier } = require('../utils/pointsCalculator');
 const { bulkProcessSales } = require('./uploadSalesBulk');
@@ -454,18 +454,22 @@ const uploadSales = async (req, res, next) => {
             return res.status(400).json({ success: false, message: 'File tidak ditemukan.' });
         }
 
-        const filePath = req.file.path;
+        // Parse from buffer (memoryStorage) or file path (diskStorage fallback)
         let data;
         try {
-            data = parseExcelFile(filePath);
+            if (req.file.buffer) {
+                data = parseExcelBuffer(req.file.buffer);
+            } else {
+                data = parseExcelFile(req.file.path);
+                fs.unlinkSync(req.file.path);
+            }
         } catch (e) {
-            fs.unlinkSync(filePath);
+            if (req.file.path) { try { fs.unlinkSync(req.file.path); } catch {} }
             return res.status(400).json({ success: false, message: 'File tidak dapat dibaca. Pastikan format .xlsx atau .csv.' });
         }
 
         const validation = validateSalesColumns(data);
         if (!validation.valid) {
-            fs.unlinkSync(filePath);
             return res.status(400).json({ success: false, message: `Kolom wajib tidak ditemukan: ${validation.missing.join(', ')}` });
         }
 

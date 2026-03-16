@@ -13,6 +13,17 @@ const parseExcelFile = (filePath) => {
 };
 
 /**
+ * Parse Excel/CSV from a Buffer (used with multer memoryStorage on Vercel)
+ */
+const parseExcelBuffer = (buffer) => {
+    const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: true });
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    const data = XLSX.utils.sheet_to_json(worksheet, { defval: '', raw: true });
+    return data;
+};
+
+/**
  * Column mapping from user's Excel headers to internal field names
  */
 const SALES_COLUMN_MAP = {
@@ -216,6 +227,7 @@ const createStockTemplate = () => {
 
 module.exports = {
     parseExcelFile,
+    parseExcelBuffer,
     validateSalesColumns,
     validateStockColumns,
     createSalesTemplate,

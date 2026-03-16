@@ -19,12 +19,7 @@ const {
     adminCreateSchema, adminEditSchema
 } = require('../utils/schemas');
 
-// Multer config
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => cb(null, path.join(__dirname, '../uploads')),
-    filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`),
-});
-
+// Multer config — memoryStorage for Vercel serverless (no filesystem writes)
 const fileFilter = (req, file, cb) => {
     const allowedTypes = [
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -37,7 +32,7 @@ const fileFilter = (req, file, cb) => {
         cb(new Error('Hanya file .xlsx dan .csv yang diizinkan.'), false);
     }
 };
-
+const storage = multer.memoryStorage();
 const upload = multer({ storage, fileFilter, limits: { fileSize: 10 * 1024 * 1024 } });
 
 router.use(verifyToken, isAdmin);
@@ -95,12 +90,9 @@ router.get('/price-analytics', getPriceAnalytics);
 router.get('/price-analytics', getPriceAnalytics);
 
 // Settings
-const storageQR = multer.diskStorage({
-    destination: (req, file, cb) => cb(null, path.join(__dirname, '../uploads')),
-    filename: (req, file, cb) => cb(null, `temp-qris-${Date.now()}.jpg`), // Temp name, controller will rename
-});
+// QR upload — memoryStorage (image processed in controller)
 const uploadQR = multer({
-    storage: storageQR,
+    storage: multer.memoryStorage(),
     fileFilter: (req, file, cb) => {
         if (file.mimetype.startsWith('image/')) cb(null, true);
         else cb(new Error('Hanya file gambar yang diizinkan.'), false);
