@@ -287,32 +287,46 @@ export default function AdminDashboard() {
                     </div>
                 </div>
 
-                {/* Monthly Comparison */}
+                {/* 6-Month Trend - CSS Column Chart */}
                 <div className="glass-card">
                     <div style={{ marginBottom: 24 }}>
                         <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: '#1e293b' }}>6-Month Sales Trend</h3>
                         <p style={{ fontSize: '0.85rem', color: '#64748b' }}>Growth vs Previous Month</p>
                     </div>
 
-                    <div style={{ height: 220, width: '100%', position: 'relative', marginBottom: 16 }}>
-                        <Bar
-                            data={monthCompData}
-                            options={{
-                                responsive: true,
-                                maintainAspectRatio: false,
-                                plugins: { legend: { display: false }, tooltip: { enabled: true } },
-                                scales: {
-                                    x: { grid: { display: false }, ticks: { color: '#64748b', font: { weight: 500 } } },
-                                    y: { display: false }
-                                },
-                            }}
-                        />
+                    {/* CSS Column Chart */}
+                    <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-around', height: 180, gap: 8, paddingBottom: 0 }}>
+                        {sixMonthsTrend && sixMonthsTrend.length > 0 ? (() => {
+                            const maxVal = Math.max(...sixMonthsTrend.map(t => Number(t.total_sales)));
+                            return sixMonthsTrend.map((t, i) => {
+                                const isLast = i === sixMonthsTrend.length - 1;
+                                const heightPct = maxVal > 0 ? Math.max(6, (Number(t.total_sales) / maxVal) * 100) : 6;
+                                return (
+                                    <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, flex: 1 }}>
+                                        <div style={{
+                                            width: '100%',
+                                            height: `${heightPct}%`,
+                                            background: isLast ? '#2563eb' : '#cbd5e1',
+                                            borderRadius: '6px 6px 0 0',
+                                            transition: 'height 0.4s ease',
+                                            position: 'relative',
+                                        }} />
+                                        <span style={{ fontSize: '0.7rem', color: isLast ? '#2563eb' : '#94a3b8', fontWeight: isLast ? 700 : 500, whiteSpace: 'nowrap' }}>
+                                            {t.month_label}
+                                        </span>
+                                    </div>
+                                );
+                            });
+                        })() : (
+                            <div style={{ color: '#94a3b8', fontSize: '0.9rem', textAlign: 'center', width: '100%' }}>No data</div>
+                        )}
                     </div>
-                    <div style={{ textAlign: 'center' }}>
-                        <div style={{ fontSize: '3rem', fontWeight: 800, color: salesGrowth >= 0 ? '#2563eb' : '#ef4444', lineHeight: 1, letterSpacing: '-1px' }}>
+
+                    <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 16, marginTop: 4, textAlign: 'center' }}>
+                        <div style={{ fontSize: '2.5rem', fontWeight: 800, color: salesGrowth >= 0 ? '#2563eb' : '#ef4444', lineHeight: 1, letterSpacing: '-1px' }}>
                             {salesGrowth >= 0 ? '+' : ''}{salesGrowth.toFixed(1)}%
                         </div>
-                        <div style={{ color: '#94a3b8', fontSize: '0.9rem', marginTop: 8, fontWeight: 500 }}>
+                        <div style={{ color: '#94a3b8', fontSize: '0.9rem', marginTop: 6, fontWeight: 500 }}>
                             {salesGrowth >= 0 ? 'Increase' : 'Decrease'} in Revenue
                         </div>
                     </div>
