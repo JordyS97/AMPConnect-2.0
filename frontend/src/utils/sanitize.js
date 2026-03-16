@@ -1,16 +1,13 @@
-import DOMPurify from 'dompurify';
-
 /**
  * Sanitizes a string or object containing strings to prevent XSS attacks.
+ * Strips all HTML tags and attributes.
  * @param {any} input - The string or object to sanitize.
  * @returns {any} - The sanitized string or object.
  */
 export const sanitizeInput = (input) => {
     if (typeof input === 'string') {
-        return DOMPurify.sanitize(input, {
-            ALLOWED_TAGS: [], // Strip all HTML tags
-            ALLOWED_ATTR: []  // Strip all HTML attributes
-        });
+        // Strip all HTML tags
+        return input.replace(/<[^>]*>/g, '');
     }
 
     if (Array.isArray(input)) {
