@@ -49,6 +49,18 @@ app.get('/api/health', (req, res) => {
     res.json({ success: true, message: 'AMPConnect API is running', timestamp: new Date().toISOString() });
 });
 
+// Temporary debug endpoint - shows real DB errors
+app.get('/api/debug', async (req, res) => {
+    try {
+        const pool = require('./config/db');
+        const result = await pool.query('SELECT NOW() as time, current_database() as db, version() as pg_version');
+        res.json({ success: true, db: result.rows[0], env: { hasDbUrl: !!process.env.DATABASE_URL, nodeEnv: process.env.NODE_ENV, hasJwtSecret: !!process.env.JWT_SECRET } });
+    } catch (err) {
+        res.json({ success: false, error: err.message, code: err.code, dbUrl: process.env.DATABASE_URL ? process.env.DATABASE_URL.replace(/:([^:@]+)@/, ':***@') : 'NOT SET' });
+    }
+});
+
+
 // Error handler
 app.use(errorHandler);
 
