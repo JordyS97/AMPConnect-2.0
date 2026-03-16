@@ -251,17 +251,20 @@ const getDashboard = async (req, res, next) => {
        GROUP BY ti.no_part, ti.nama_part ORDER BY total_value DESC LIMIT 10`
         );
 
-        // 6-Month sales trend
+        // 6-Month sales trend (relative to most recent transaction date, not NOW)
         const sixMonthsTrend = await pool.query(`
-            WITH months AS (
+            WITH latest AS (
+                SELECT COALESCE(MAX(tanggal), CURRENT_DATE) AS latest_date FROM transactions
+            ),
+            months AS (
                 SELECT generate_series(
-                    DATE_TRUNC('month', NOW()) - INTERVAL '5 months',
-                    DATE_TRUNC('month', NOW()),
+                    DATE_TRUNC('month', (SELECT latest_date FROM latest)) - INTERVAL '5 months',
+                    DATE_TRUNC('month', (SELECT latest_date FROM latest)),
                     '1 month'
                 ) AS month_date
             )
             SELECT 
-                TO_CHAR(m.month_date, 'Mon') as month_label,
+                TO_CHAR(m.month_date, 'Mon YYYY') as month_label,
                 COALESCE(SUM(t.net_sales), 0) as total_sales
             FROM months m
             LEFT JOIN transactions t ON DATE_TRUNC('month', t.tanggal) = m.month_date
