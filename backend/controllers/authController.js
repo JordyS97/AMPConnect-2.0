@@ -75,7 +75,7 @@ const login = async (req, res, next) => {
         const token = jwt.sign(
             { id: customer.id, email: customer.email, type: 'customer', no_customer: customer.no_customer },
             process.env.JWT_SECRET,
-            { expiresIn: process.env.JWT_EXPIRES_IN }
+            { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
         );
 
         // Log activity
@@ -128,7 +128,7 @@ const adminLogin = async (req, res, next) => {
         const token = jwt.sign(
             { id: admin.id, username: admin.username, role: admin.role, type: 'admin' },
             process.env.JWT_SECRET,
-            { expiresIn: process.env.JWT_EXPIRES_IN }
+            { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
         );
 
         // Log activity
@@ -178,7 +178,7 @@ const verifyOTP = async (req, res, next) => {
         const token = jwt.sign(
             { id: customer.rows[0].id, email, type: 'customer', no_customer: customer.rows[0].no_customer },
             process.env.JWT_SECRET,
-            { expiresIn: process.env.JWT_EXPIRES_IN }
+            { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
         );
 
         // Log activity
