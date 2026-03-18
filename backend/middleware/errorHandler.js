@@ -14,13 +14,13 @@ const errorHandler = (err, req, res, next) => {
 
     const response = {
         success: false,
-        message: message,
+        message: err.message || 'Terjadi kesalahan pada server.'
     };
 
-    // TEMP DEBUG: always include error
-    response.error = err.message;
-    response.stack = err.stack;
-
+    if (process.env.NODE_ENV !== 'production') {
+        response.error = err.message;
+        response.stack = err.stack;
+    }
     res.status(statusCode).json(response);
 };
 

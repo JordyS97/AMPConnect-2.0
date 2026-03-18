@@ -1,7 +1,7 @@
 const bcrypt = require('bcryptjs');
 const fs = require('fs');
 const pool = require('../config/db');
-const { parseExcelFile } = require('../utils/excelParser');
+const { parseExcelFile, parseExcelBuffer } = require('../utils/excelParser');
 
 // Get customers list
 const getCustomers = async (req, res, next) => {
@@ -291,17 +291,21 @@ const uploadCustomers = async (req, res, next) => {
             return res.status(400).json({ success: false, message: 'File tidak ditemukan.' });
         }
 
-        const filePath = req.file.path;
+        // Parse from buffer (memoryStorage) or file path fallback
         let data;
         try {
-            data = parseExcelFile(filePath);
+            if (req.file.buffer) {
+                data = parseExcelBuffer(req.file.buffer);
+            } else {
+                data = parseExcelFile(req.file.path);
+                fs.unlinkSync(req.file.path);
+            }
         } catch (e) {
-            fs.unlinkSync(filePath);
+            if (req.file.path) { try { fs.unlinkSync(req.file.path); } catch {} }
             return res.status(400).json({ success: false, message: 'File tidak dapat dibaca. Pastikan format .xlsx atau .csv.' });
         }
 
         if (data.length === 0) {
-            fs.unlinkSync(filePath);
             return res.status(400).json({ success: false, message: 'File kosong.' });
         }
 
@@ -382,8 +386,7 @@ const uploadCustomers = async (req, res, next) => {
             successCount = customerUpserts.size;
         }
 
-        // Clean up file
-        fs.unlinkSync(filePath);
+        // (No cleanup needed — using memoryStorage, file is in buffer not disk)
 
         // Log
         await pool.query(
