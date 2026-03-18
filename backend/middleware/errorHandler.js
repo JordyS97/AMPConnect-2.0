@@ -17,10 +17,9 @@ const errorHandler = (err, req, res, next) => {
         message: message,
     };
 
-    if (process.env.NODE_ENV === 'development') {
-        response.error = err.message;
-        response.stack = err.stack;
-    }
+    // TEMP: always show error for debugging — remove after fix
+    response.error = err.message;
+    response.stack = err.stack;
 
     res.status(statusCode).json(response);
 };
