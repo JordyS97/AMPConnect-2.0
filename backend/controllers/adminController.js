@@ -749,8 +749,7 @@ const uploadSales = async (req, res, next) => {
             ['admin', req.user.id, req.user.username, 'Upload Sales', `Upload data penjualan: ${successCount} baris berhasil, ${failedCount} gagal`, req.ip]
         );
 
-        // Clean up
-        fs.unlinkSync(filePath);
+        // (No cleanup needed — using memoryStorage, file is in buffer not disk)
 
         res.json({
             success: true,
@@ -771,12 +770,17 @@ const uploadStock = async (req, res, next) => {
             return res.status(400).json({ success: false, message: 'File tidak ditemukan.' });
         }
 
-        const filePath = req.file.path;
+        // Parse from buffer (memoryStorage) or file path fallback
         let data;
         try {
-            data = parseExcelFile(filePath);
+            if (req.file.buffer) {
+                data = parseExcelBuffer(req.file.buffer);
+            } else {
+                data = parseExcelFile(req.file.path);
+                fs.unlinkSync(req.file.path);
+            }
         } catch (e) {
-            fs.unlinkSync(filePath);
+            if (req.file.path) { try { fs.unlinkSync(req.file.path); } catch {} }
             return res.status(400).json({ success: false, message: 'File tidak dapat dibaca.' });
         }
 
