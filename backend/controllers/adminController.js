@@ -671,6 +671,7 @@ const uploadSales = async (req, res, next) => {
 
 // Upload stock data
 const uploadStock = async (req, res, next) => {
+    const client = await pool.connect();
     try {
         if (!req.file) {
             return res.status(400).json({ success: false, message: 'File tidak ditemukan.' });
@@ -694,9 +695,11 @@ const uploadStock = async (req, res, next) => {
         if (!validation.valid) {
              if (req.file.path) { try { fs.unlinkSync(req.file.path); } catch {} }
              return res.status(400).json({ success: false, message: `Kolom wajib tidak ditemukan: ${validation.missing.join(', ')}` });
-         }
+        }
 
-        const upload = await pool.query(
+        await client.query('BEGIN');
+
+        const upload = await client.query(
             `INSERT INTO upload_history (admin_id, admin_username, file_type, file_name, rows_processed, status) 
        VALUES ($1, $2, 'stock', $3, $4, 'processing') RETURNING id`,
             [req.user.id, req.user.username, req.file.originalname, data.length]
@@ -708,23 +711,19 @@ const uploadStock = async (req, res, next) => {
         const errors = [];
 
         // Wipe all existing stock — new upload fully replaces old data
-        await pool.query('DELETE FROM parts');
+        await client.query('DELETE FROM parts');
 
         const { normalizeStockRow } = require('../utils/excelParser');
 
         for (let i = 0; i < data.length; i++) {
             try {
                 const row = normalizeStockRow(data[i]);
-
-                // Keys are now UPPERCASE_WITH_UNDERSCORES from normalizeStockRow (e.g. NO_PART, GROUP_PART)
-                // Map common variations
                 const noPart = row.NO_PART || row.PART_NUMBER || row.NOMOR_PART || '';
                 const namaPart = row.NAMA_PART || row.PART_NAME || row.DESKRIPSI || '';
                 const groupPart = String(row.GROUP_PART || row.GROUP || '').trim() || null;
                 const groupTobpm = String(row.GROUP_TOBPM || row.TOBPM || '').trim() || null;
                 const groupMaterial = String(row.GROUP_MATERIAL || row.MATERIAL_GROUP || '').trim() || null;
 
-                // Qty and Amount
                 const qtyVal = row.QTY || row.QUANTITY || row.STOK || row.STOCK || 0;
                 const amountVal = row.AMOUNT || row.TOTAL_VALUE || row.PRICE || row.HARGA || 0;
 
@@ -737,7 +736,7 @@ const uploadStock = async (req, res, next) => {
                     continue;
                 }
 
-                await pool.query(
+                await client.query(
                     `INSERT INTO parts (no_part, nama_part, group_part, group_material, group_tobpm, qty, amount, last_updated)
            VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
            ON CONFLICT (no_part) DO UPDATE SET
@@ -752,17 +751,17 @@ const uploadStock = async (req, res, next) => {
             }
         }
 
-        await pool.query(
+        await client.query(
             `UPDATE upload_history SET success_count = $1, failed_count = $2, status = $3, error_log = $4 WHERE id = $5`,
             [successCount, failedCount, failedCount > 0 && successCount === 0 ? 'failed' : 'completed', JSON.stringify(errors), uploadId]
         );
 
-        await pool.query(
+        await client.query(
             `INSERT INTO activity_logs (user_type, user_id, user_name, action, description, ip_address) VALUES ($1, $2, $3, $4, $5, $6)`,
             ['admin', req.user.id, req.user.username, 'Upload Stock', `Upload data stok: ${successCount} berhasil, ${failedCount} gagal`, req.ip]
         );
 
-        // (No cleanup needed — using memoryStorage, file is in buffer not disk)
+        await client.query('COMMIT');
 
         res.json({
             success: true,
@@ -770,7 +769,10 @@ const uploadStock = async (req, res, next) => {
             data: { rows_processed: data.length, success_count: successCount, failed_count: failedCount, errors }
         });
     } catch (error) {
+        await client.query('ROLLBACK');
         next(error);
+    } finally {
+        client.release();
     }
 };
 

@@ -99,7 +99,7 @@ const getInventoryStats = async (req, res, next) => {
                 COUNT(*) as total_parts,
                 COUNT(CASE WHEN qty > 0 AND qty <= 20 THEN 1 END) as low_stock,
                 COUNT(CASE WHEN qty = 0 THEN 1 END) as out_of_stock,
-                COALESCE(SUM(qty * amount), 0) as total_value
+                COALESCE(SUM(amount), 0) as total_value
             FROM parts
         `);
 
