@@ -762,7 +762,7 @@ const uploadStock = async (req, res, next) => {
             ['admin', req.user.id, req.user.username, 'Upload Stock', `Upload data stok: ${successCount} berhasil, ${failedCount} gagal`, req.ip]
         );
 
-        fs.unlinkSync(filePath);
+        // (No cleanup needed — using memoryStorage, file is in buffer not disk)
 
         res.json({
             success: true,
