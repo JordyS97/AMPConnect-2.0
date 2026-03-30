@@ -36,9 +36,12 @@ async function bulkProcessSales(pool, invoiceGroups, invoices, customerMap, pars
                 const hp = parseNum(item.harga_pokok);
                 totalFaktur += tf;
                 diskon += Math.abs(parseNum(item.diskon));
-                const ns = parseNum(item.net_sales) || (tf - ppn);
+                
+                // Strict check: if column exists in Excel, trust it even if 0 or negative
+                const ns = (item.net_sales !== undefined && item.net_sales !== '') ? parseNum(item.net_sales) : (tf - ppn);
                 netSales += ns;
-                const gp = parseNum(item.gross_profit) || (tf - ppn - hp);
+                
+                const gp = (item.gross_profit !== undefined && item.gross_profit !== '') ? parseNum(item.gross_profit) : (tf - ppn - hp);
                 grossProfit += gp;
             }
             const customerId = customerMap[noCustomer] || null;
@@ -100,8 +103,8 @@ async function bulkProcessSales(pool, invoiceGroups, invoices, customerMap, pars
             const np = String(item.no_part || '').trim();
             const sales = parseNum(item.sales);
             const gm = item.matgroup_fix || item.group_material || item.group_tobpm || item.group_part || '';
-            const ns = parseNum(item.net_sales) || (tf - ppn);
-            const gp = parseNum(item.gross_profit) || (tf - ppn - hp);
+            const ns = (item.net_sales !== undefined && item.net_sales !== '') ? parseNum(item.net_sales) : (tf - ppn);
+            const gp = (item.gross_profit !== undefined && item.gross_profit !== '') ? parseNum(item.gross_profit) : (tf - ppn - hp);
             allItemRows.push([transactionId, np, item.nama_part || '', q, sales, ns, Math.abs(parseNum(item.diskon)), hp, gp, gm]);
         }
     }

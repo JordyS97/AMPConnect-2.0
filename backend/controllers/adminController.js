@@ -8,6 +8,47 @@ const { calculatePoints, determineTier } = require('../utils/pointsCalculator');
 const { bulkProcessSales } = require('./uploadSalesBulk');
 const XLSX = require('xlsx');
 
+const parseNum = (v) => {
+    if (typeof v === 'number') return v;
+    if (!v) return 0;
+    let s = String(v).trim();
+    if (s === '' || s === '-') return 0;
+
+    const isNegative = s.startsWith('-') || (s.startsWith('(') && s.endsWith(')'));
+    
+    // Remove characters except digits, dots, and commas
+    s = s.replace(/[^-0-9,.]/g, '');
+
+    const lastDot = s.lastIndexOf('.');
+    const lastComma = s.lastIndexOf(',');
+
+    if (lastDot > -1 && lastComma > -1) {
+        if (lastDot > lastComma) {
+            s = s.replace(/,/g, ''); 
+        } else {
+            s = s.replace(/\./g, '').replace(',', '.');
+        }
+    } else if (lastDot > -1) {
+        const dotCount = (s.match(/\./g) || []).length;
+        if (dotCount > 1) {
+            s = s.replace(/\./g, '');
+        } else if (s.match(/\.\d{3}$/)) {
+            // Likely a thousand separator 1.000 -> 1000
+            s = s.replace(/\./g, '');
+        }
+    } else if (lastComma > -1) {
+        const commaCount = (s.match(/,/g) || []).length;
+        if (commaCount > 1) {
+            s = s.replace(/,/g, '');
+        } else {
+            s = s.replace(',', '.');
+        }
+    }
+
+    let val = parseFloat(s) || 0;
+    return isNegative ? -Math.abs(val) : val;
+};
+
 // Get inventory analytics
 const getInventoryAnalytics = async (req, res, next) => {
     try {
@@ -54,49 +95,52 @@ const getInventoryAnalytics = async (req, res, next) => {
         // Total Cost = Sum(Sold Qty * Unit Cost)
         const bestGPPercent = await pool.query(`
             SELECT ti.no_part, ti.nama_part, 
-                   (SUM(ti.subtotal) - SUM(ti.qty * (COALESCE(p.amount, 0) / NULLIF(p.qty, 0)))) as total_profit,
+                   SUM(ti.gross_profit) as total_profit,
                    SUM(ti.subtotal) as total_revenue,
                    CASE WHEN SUM(ti.subtotal) > 0 THEN 
-                        ((SUM(ti.subtotal) - SUM(ti.qty * (COALESCE(p.amount, 0) / NULLIF(p.qty, 0)))) / SUM(ti.subtotal)) * 100 
+                        (SUM(ti.gross_profit) / SUM(ti.subtotal)) * 100 
                    ELSE 0 END as avg_gp
             FROM transaction_items ti 
             JOIN transactions t ON ti.transaction_id = t.id
-            JOIN parts p ON ti.no_part = p.no_part
-            WHERE ti.price > 0 AND p.qty > 0 ${dateFilter}
+            LEFT JOIN parts p ON ti.no_part = p.no_part
+            WHERE ti.subtotal > 0 ${dateFilter}
             GROUP BY ti.no_part, ti.nama_part 
-            HAVING COUNT(ti.id) > 5 
+            HAVING COUNT(ti.id) > 2
             ORDER BY avg_gp DESC LIMIT 20`, params);
+
 
         // 2. Worst Performers
         const worstGPPercent = await pool.query(`
             SELECT ti.no_part, ti.nama_part, 
-                   (SUM(ti.subtotal) - SUM(ti.qty * (COALESCE(p.amount, 0) / NULLIF(p.qty, 0)))) as total_profit,
+                   SUM(ti.gross_profit) as total_profit,
                    SUM(ti.subtotal) as total_revenue,
                    CASE WHEN SUM(ti.subtotal) > 0 THEN 
-                        ((SUM(ti.subtotal) - SUM(ti.qty * (COALESCE(p.amount, 0) / NULLIF(p.qty, 0)))) / SUM(ti.subtotal)) * 100 
+                        (SUM(ti.gross_profit) / SUM(ti.subtotal)) * 100 
                    ELSE 0 END as avg_gp
             FROM transaction_items ti 
             JOIN transactions t ON ti.transaction_id = t.id
-            JOIN parts p ON ti.no_part = p.no_part
-            WHERE ti.price > 0 AND p.qty > 0 ${dateFilter}
+            LEFT JOIN parts p ON ti.no_part = p.no_part
+            WHERE ti.subtotal > 0 ${dateFilter}
             GROUP BY ti.no_part, ti.nama_part 
-            HAVING COUNT(ti.id) > 5
+            HAVING COUNT(ti.id) > 2
             ORDER BY avg_gp ASC LIMIT 20`, params);
+
 
         const negativeGP = await pool.query(`
              SELECT ti.no_part, ti.nama_part, 
-                    (SUM(ti.subtotal) - SUM(ti.qty * (COALESCE(p.amount, 0) / NULLIF(p.qty, 0)))) as total_profit,
+                    SUM(ti.gross_profit) as total_profit,
                     SUM(ti.subtotal) as total_revenue,
                     CASE WHEN SUM(ti.subtotal) > 0 THEN 
-                         ((SUM(ti.subtotal) - SUM(ti.qty * (COALESCE(p.amount, 0) / NULLIF(p.qty, 0)))) / SUM(ti.subtotal)) * 100 
+                         (SUM(ti.gross_profit) / SUM(ti.subtotal)) * 100 
                     ELSE 0 END as avg_gp
             FROM transaction_items ti 
             JOIN transactions t ON ti.transaction_id = t.id
-            JOIN parts p ON ti.no_part = p.no_part
-            WHERE ti.price > 0 AND p.qty > 0 ${dateFilter}
+            LEFT JOIN parts p ON ti.no_part = p.no_part
+            WHERE ti.subtotal > 0 ${dateFilter}
             GROUP BY ti.no_part, ti.nama_part 
-            HAVING (SUM(ti.subtotal) - SUM(ti.qty * (COALESCE(p.amount, 0) / NULLIF(p.qty, 0)))) < 0
+            HAVING SUM(ti.gross_profit) < 0
             LIMIT 50`, params);
+
 
         // 3. Inventory Health (Snapshot based, so date filter might not apply strictly to stock status, but we can filter 'last sale' logic)
         // Slow Moving: Stock > 0, No Sale since calculated date
@@ -126,12 +170,13 @@ const getInventoryAnalytics = async (req, res, next) => {
 
         // 4. Category Analysis (Revenue)
         const byGroupPart = await pool.query(`
-            SELECT COALESCE(p.group_tobpm, 'Lainnya') as category, SUM(ti.subtotal) as revenue
+            SELECT COALESCE(p.group_tobpm, ti.group_material, 'Lainnya') as category, SUM(ti.subtotal) as revenue
             FROM transaction_items ti
-            JOIN parts p ON ti.no_part = p.no_part
             JOIN transactions t ON ti.transaction_id = t.id
+            LEFT JOIN parts p ON ti.no_part = p.no_part
             WHERE 1=1 ${dateFilter}
-            GROUP BY p.group_tobpm ORDER BY revenue DESC`, params);
+            GROUP BY category ORDER BY revenue DESC`, params);
+
 
         // 5. Cross Sell (Pairs) - Filter by Date if provided, otherwise recent 500
         let crossSellQuery = '';
@@ -398,7 +443,7 @@ const getStock = async (req, res, next) => {
 
         // Overview stats using same filters
         const overviewQuery = query.replace('SELECT *',
-            `SELECT COALESCE(SUM(amount * qty), 0) as total_value, COUNT(*) as total_parts,
+            `SELECT COALESCE(SUM(amount), 0) as total_value, COUNT(*) as total_parts,
        SUM(CASE WHEN qty > 0 AND qty <= 20 THEN 1 ELSE 0 END) as low_stock,
        SUM(CASE WHEN qty = 0 THEN 1 ELSE 0 END) as out_of_stock`);
         const overview = await pool.query(overviewQuery, params);
@@ -473,13 +518,6 @@ const uploadSales = async (req, res, next) => {
             return res.status(400).json({ success: false, message: `Kolom wajib tidak ditemukan: ${validation.missing.join(', ')}` });
         }
 
-        // Guarantee Schema (because lazy migration might not have run)
-        try {
-            await pool.query('ALTER TABLE transaction_items ADD COLUMN IF NOT EXISTS diskon DECIMAL(15,2) DEFAULT 0');
-            await pool.query('ALTER TABLE transaction_items ADD COLUMN IF NOT EXISTS cost_price DECIMAL(20,2) DEFAULT 0');
-        } catch (e) {
-            console.error('Schema migration error (safe to ignore if columns exist):', e);
-        }
 
         // Create upload history record
         const upload = await pool.query(
@@ -535,24 +573,6 @@ const uploadSales = async (req, res, next) => {
 
         // 3. Group Rows by No Faktur
         const invoiceGroups = {};
-        const parseNum = (v) => {
-            if (typeof v === 'number') return v;
-            if (!v) return 0;
-
-            let s = String(v).trim();
-
-            // Handle (123) as negative
-            const isNegative = s.includes('(') && s.includes(')') || s.startsWith('-');
-
-            // Remove everything except digits and dots (assuming dot is decimal)
-            // If comma is used as decimal, this logic needs adjustment. 
-            // Based on previous code "1,292... -> replace comma", we assume comma = thousand, dot = decimal.
-            s = s.replace(/[^0-9.]/g, '');
-
-            let val = parseFloat(s) || 0;
-            if (isNegative) val = -Math.abs(val);
-            return val;
-        };
 
         for (let i = 0; i < data.length; i++) {
             const row = normalizeSalesRow(data[i]);
@@ -619,28 +639,44 @@ const uploadSales = async (req, res, next) => {
         errors.push(...bulkResult.errors);
         for (const cid of bulkResult.affectedCustomerIds) affectedCustomerIds.add(cid);
 
-        // 5. Update customer points & tier
-        for (const customerId of affectedCustomerIds) {
+        // 5. Update customer points & tier (BULK - single query instead of per-customer)
+        if (affectedCustomerIds.size > 0) {
             try {
-                // Calculate total points
-                const totalPoints = await pool.query(
-                    'SELECT COALESCE(SUM(points_earned), 0) as total FROM transactions WHERE customer_id = $1', [customerId]
-                );
-                const newTotalPoints = parseInt(totalPoints.rows[0].total);
+                const cidArray = Array.from(affectedCustomerIds);
+                await pool.query(`
+                    UPDATE customers c
+                    SET 
+                        total_points = sub.total_points,
+                        updated_at = NOW()
+                    FROM (
+                        SELECT customer_id, COALESCE(SUM(points_earned), 0) as total_points
+                        FROM transactions
+                        WHERE customer_id = ANY($1::int[])
+                        GROUP BY customer_id
+                    ) sub
+                    WHERE c.id = sub.customer_id
+                `, [cidArray]);
 
-                // Calculate lifetime net sales for tier
-                const lifetimeSalesResult = await pool.query(
-                    'SELECT COALESCE(SUM(net_sales), 0) as total_sales FROM transactions WHERE customer_id = $1', [customerId]
-                );
-                const lifetimeNetSales = parseFloat(lifetimeSalesResult.rows[0].total_sales);
-
-                const newTier = determineTier(lifetimeNetSales);
-
-                await pool.query(
-                    'UPDATE customers SET total_points = $1, tier = $2, updated_at = NOW() WHERE id = $3',
-                    [newTotalPoints, newTier, customerId]
-                );
-            } catch (err) { /* ignore tier update errors */ }
+                // Bulk tier update based on lifetime net sales
+                await pool.query(`
+                    UPDATE customers c
+                    SET tier = CASE
+                        WHEN sub.total_sales >= 200000000 THEN 'Moon Stone'
+                        WHEN sub.total_sales >= 100000000 THEN 'Diamond'
+                        WHEN sub.total_sales >= 10000000 THEN 'Gold'
+                        ELSE 'Silver'
+                    END
+                    FROM (
+                        SELECT customer_id, COALESCE(SUM(net_sales), 0) as total_sales
+                        FROM transactions
+                        WHERE customer_id = ANY($1::int[])
+                        GROUP BY customer_id
+                    ) sub
+                    WHERE c.id = sub.customer_id
+                `, [cidArray]);
+            } catch (err) {
+                console.error('Bulk customer update error:', err.message);
+            }
         }
 
         // Update upload history
@@ -727,8 +763,8 @@ const uploadStock = async (req, res, next) => {
                 const qtyVal = row.QTY || row.QUANTITY || row.STOK || row.STOCK || 0;
                 const amountVal = row.AMOUNT || row.TOTAL_VALUE || row.PRICE || row.HARGA || 0;
 
-                const qty = parseInt(String(qtyVal).replace(/,/g, '')) || 0;
-                const amount = parseFloat(String(amountVal).replace(/,/g, '')) || 0;
+                const qty = Math.round(parseNum(qtyVal));
+                const amount = parseNum(amountVal);
 
                 if (!noPart) {
                     failedCount++;
@@ -1455,59 +1491,29 @@ const recalculateFinancials = async (req, res, next) => {
     try {
         await client.query('BEGIN');
 
-        // 1. Update Transaction Headers
-        // Net Sales = Total Faktur / 1.11
-        await client.query(`
-            UPDATE transactions 
-            SET net_sales = total_faktur / 1.11
-        `);
+        console.log('Recalculating financials from transaction_items (trusting existing item data)...');
 
-        // 2. Update Transaction Items
-        // Subtotal = (Total Faktur of Header / Count Items)? No, we don't know item breakdown perfectly if we only have totals.
-        // But for uploaded items, we usually stored 'sales' (line amount). 
-        // Let's assume 'subtotal' column in items was populated from 'sales' in CSV.
-        // If we want to correct it, we should do: subtotal = subtotal / 1.11? 
-        // No, 'Sales' in CSV is usually Tax Inc or Exc? 
-        // User said: "Net Sales =[@[Total Faktur]]/1.11".
-        // If item.sales was tax inclusive, then yes, divide by 1.11.
-        await client.query(`
-            UPDATE transaction_items
-            SET subtotal = subtotal / 1.11,
-                price = (subtotal / 1.11) / NULLIF(qty, 0)
-        `);
-
-        // 3. Update Gross Profit on Headers
-        // GP = Net Sales - (Qty * UnitCost)
-        // Priority: 1. Stored `cost_price` in transaction_items, 2. Master Part Cost (parts.amount / qty)
+        // 1. Sync header totals from items
         await client.query(`
             UPDATE transactions t
-            SET gross_profit = (
-                SELECT COALESCE(SUM(
-                    ti.subtotal - (ti.qty * CASE 
-                        WHEN ti.cost_price > 0 THEN ti.cost_price
-                        ELSE COALESCE(p.amount / NULLIF(p.qty, 0), 0)
-                    END)
-                ), 0)
-                FROM transaction_items ti
-                LEFT JOIN parts p ON ti.no_part = p.no_part
-                WHERE ti.transaction_id = t.id
-            )
-        `);
-
-        // 4. Update GP %
-        await client.query(`
-            UPDATE transactions
-            SET gp_percent = CASE WHEN net_sales > 0 THEN (gross_profit / net_sales) * 100 ELSE 0 END
-        `);
-
-        // 5. Recalculate Points (assuming 1 point per 10,000 net sales)
-        await client.query(`
-             UPDATE transactions
-             SET points_earned = FLOOR(net_sales / 500000)
+            SET 
+                net_sales = sub.sum_ns,
+                gross_profit = sub.sum_gp,
+                gp_percent = CASE WHEN sub.sum_ns > 0 THEN (sub.sum_gp / sub.sum_ns) * 100 ELSE 0 END,
+                points_earned = FLOOR(sub.sum_ns / 500000)
+            FROM (
+                SELECT 
+                    transaction_id, 
+                    SUM(subtotal) as sum_ns, 
+                    SUM(gross_profit) as sum_gp
+                FROM transaction_items
+                GROUP BY transaction_id
+            ) sub
+            WHERE t.id = sub.transaction_id
         `);
 
         await client.query('COMMIT');
-        res.json({ success: true, message: 'Financials recalculated successfully based on current validation rules.' });
+        res.json({ success: true, message: 'Financials recalculated successfully from items.' });
     } catch (err) {
         await client.query('ROLLBACK');
         next(err);
