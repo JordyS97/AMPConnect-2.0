@@ -287,42 +287,77 @@ export default function AdminDashboard() {
                     </div>
                 </div>
 
-                {/* 6-Month Trend - CSS Column Chart */}
+                {/* 6-Month Trend - Chart.js Bar Chart */}
                 <div className="glass-card">
-                    <div style={{ marginBottom: 24 }}>
+                    <div style={{ marginBottom: 16 }}>
                         <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: '#1e293b' }}>6-Month Sales Trend</h3>
                         <p style={{ fontSize: '0.85rem', color: '#64748b' }}>Growth vs Previous Month</p>
                     </div>
 
-                    {/* CSS Column Chart */}
-                    <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-around', height: 180, gap: 8, paddingBottom: 0 }}>
-                        {sixMonthsTrend && sixMonthsTrend.length > 0 ? (() => {
-                            const maxVal = Math.max(...sixMonthsTrend.map(t => Number(t.total_sales)));
-                            return sixMonthsTrend.map((t, i) => {
-                                const isLast = i === sixMonthsTrend.length - 1;
-                                const heightPct = maxVal > 0 ? Math.max(6, (Number(t.total_sales) / maxVal) * 100) : 6;
-                                return (
-                                    <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, flex: 1 }}>
-                                        <div style={{
-                                            width: '100%',
-                                            height: `${heightPct}%`,
-                                            background: isLast ? '#2563eb' : '#cbd5e1',
-                                            borderRadius: '6px 6px 0 0',
-                                            transition: 'height 0.4s ease',
-                                            position: 'relative',
-                                        }} />
-                                        <span style={{ fontSize: '0.7rem', color: isLast ? '#2563eb' : '#94a3b8', fontWeight: isLast ? 700 : 500, whiteSpace: 'nowrap' }}>
-                                            {t.month_label}
-                                        </span>
-                                    </div>
-                                );
-                            });
-                        })() : (
-                            <div style={{ color: '#94a3b8', fontSize: '0.9rem', textAlign: 'center', width: '100%' }}>No data</div>
+                    <div style={{ height: 200 }}>
+                        {sixMonthsTrend && sixMonthsTrend.length > 0 ? (
+                            <Bar
+                                data={{
+                                    labels: sixMonthsTrend.map(t => t.month_label),
+                                    datasets: [{
+                                        label: 'Net Sales',
+                                        data: sixMonthsTrend.map(t => t.total_sales),
+                                        backgroundColor: sixMonthsTrend.map((_, i) =>
+                                            i === sixMonthsTrend.length - 1 ? '#2563eb' : '#cbd5e1'
+                                        ),
+                                        borderRadius: 6,
+                                        borderSkipped: false,
+                                        barPercentage: 0.6,
+                                        categoryPercentage: 0.7,
+                                    }]
+                                }}
+                                options={{
+                                    responsive: true,
+                                    maintainAspectRatio: false,
+                                    plugins: {
+                                        legend: { display: false },
+                                        tooltip: {
+                                            backgroundColor: '#1e293b',
+                                            titleFont: { size: 12, weight: '600' },
+                                            bodyFont: { size: 12 },
+                                            padding: 10,
+                                            cornerRadius: 8,
+                                            callbacks: {
+                                                label: (ctx) => `Net Sales: ${formatCurrency(ctx.raw)}`
+                                            }
+                                        }
+                                    },
+                                    scales: {
+                                        y: {
+                                            beginAtZero: true,
+                                            grid: { color: '#f1f5f9', drawBorder: false },
+                                            ticks: {
+                                                font: { size: 10 },
+                                                color: '#94a3b8',
+                                                callback: (v) => v >= 1000000 ? `${(v / 1000000).toFixed(0)}M` : v >= 1000 ? `${(v / 1000).toFixed(0)}K` : v
+                                            },
+                                            border: { display: false }
+                                        },
+                                        x: {
+                                            grid: { display: false },
+                                            ticks: {
+                                                font: (ctx) => ({
+                                                    size: 11,
+                                                    weight: ctx.index === sixMonthsTrend.length - 1 ? '700' : '500'
+                                                }),
+                                                color: (ctx) => ctx.index === sixMonthsTrend.length - 1 ? '#2563eb' : '#94a3b8',
+                                            },
+                                            border: { display: false }
+                                        }
+                                    }
+                                }}
+                            />
+                        ) : (
+                            <div style={{ color: '#94a3b8', fontSize: '0.9rem', textAlign: 'center', paddingTop: 80 }}>No data</div>
                         )}
                     </div>
 
-                    <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 16, marginTop: 4, textAlign: 'center' }}>
+                    <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 16, marginTop: 12, textAlign: 'center' }}>
                         <div style={{ fontSize: '2.5rem', fontWeight: 800, color: salesGrowth >= 0 ? '#2563eb' : '#ef4444', lineHeight: 1, letterSpacing: '-1px' }}>
                             {salesGrowth >= 0 ? '+' : ''}{salesGrowth.toFixed(1)}%
                         </div>
