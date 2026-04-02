@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Upload, CheckCircle, AlertCircle, Save } from 'lucide-react';
 import api from '../../api/axios';
 import { useToast } from '../../components/Toast';
@@ -6,10 +6,15 @@ import { useToast } from '../../components/Toast';
 export default function Settings() {
     const [uploading, setUploading] = useState(false);
     const [preview, setPreview] = useState(null);
+    const [qrImage, setQrImage] = useState(null);
     const fileInputRef = useRef(null);
     const { addToast } = useToast();
-    // Cache bust query param
-    const [qrUrl, setQrUrl] = useState(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/uploads/qris.jpg?t=${Date.now()}`);
+
+    useEffect(() => {
+        api.get('/settings/qr')
+            .then(res => { if (res.data.image) setQrImage(res.data.image); })
+            .catch(() => {});
+    }, []);
 
     const handleFileChange = (e) => {
         const file = e.target.files[0];
@@ -41,9 +46,8 @@ export default function Settings() {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
             addToast('QRIS ASTRAPAY berhasil diperbarui', 'success');
+            setQrImage(preview);
             setPreview(null);
-            // Refresh Image
-            setQrUrl(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/uploads/qris.jpg?t=${Date.now()}`);
             if (fileInputRef.current) fileInputRef.current.value = null;
         } catch (err) {
             addToast(err.response?.data?.message || 'Gagal mengupload QRIS', 'error');
@@ -79,15 +83,15 @@ export default function Settings() {
                             overflow: 'hidden',
                             position: 'relative'
                         }}>
-                            <img
-                                src={preview || qrUrl}
-                                alt="QRIS Preview"
-                                style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-                                onError={(e) => {
-                                    e.target.onerror = null;
-                                    e.target.src = 'https://via.placeholder.com/200x200?text=No+QR+Image';
-                                }}
-                            />
+                            {(preview || qrImage) ? (
+                                <img
+                                    src={preview || qrImage}
+                                    alt="QRIS Preview"
+                                    style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                                />
+                            ) : (
+                                <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Belum ada QR</span>
+                            )}
                         </div>
 
                         {/* Upload Controls */}

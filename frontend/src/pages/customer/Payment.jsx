@@ -1,9 +1,18 @@
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import TierBadge from '../../components/TierBadge';
 import { User, Phone, CreditCard, Smartphone, CheckCircle } from 'lucide-react';
+import api from '../../api/axios';
 
 export default function Payment() {
     const { user } = useAuth();
+    const [qrImage, setQrImage] = useState(null);
+
+    useEffect(() => {
+        api.get('/settings/qr')
+            .then(res => { if (res.data.image) setQrImage(res.data.image); })
+            .catch(() => {});
+    }, []);
 
     const steps = [
         'Buka aplikasi ASTRAPAY di ponsel Anda',
@@ -69,17 +78,19 @@ export default function Payment() {
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         border: '2px solid var(--border)',
                     }}>
-                        <div style={{ textAlign: 'center', width: '100%', height: '100%' }}>
-                            <img
-                                src={`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/uploads/qris.jpg?t=${Date.now()}`}
-                                alt="QR Code ASTRAPAY"
-                                style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-                                onError={(e) => {
-                                    e.target.onerror = null;
-                                    e.target.style.display = 'none';
-                                    e.target.parentElement.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:#94a3b8"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 7h.01"/><path d="M7 17h.01"/><path d="M17 7h.01"/><path d="M17 17h.01"/></svg><p style="margin-top:8px;font-size:0.8rem">QR Code belum tersedia</p></div>';
-                                }}
-                            />
+                        <div style={{ textAlign: 'center', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            {qrImage ? (
+                                <img
+                                    src={qrImage}
+                                    alt="QR Code ASTRAPAY"
+                                    style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                                />
+                            ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', color: '#94a3b8' }}>
+                                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 7h.01"/><path d="M7 17h.01"/><path d="M17 7h.01"/><path d="M17 17h.01"/></svg>
+                                    <p style={{ marginTop: 8, fontSize: '0.8rem' }}>QR Code belum tersedia</p>
+                                </div>
+                            )}
                         </div>
                     </div>
                     <p style={{ fontWeight: 500, color: 'var(--text)' }}>Scan dengan aplikasi ASTRAPAY</p>

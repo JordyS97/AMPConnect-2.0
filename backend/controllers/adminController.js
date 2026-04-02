@@ -1439,38 +1439,22 @@ const getPriceAnalytics = async (req, res, next) => {
     }
 };
 
-// Upload QRIS Image
+// Upload QRIS Image — stores base64 in DB for persistence on serverless
 const uploadSettingsQR = async (req, res, next) => {
     try {
         if (!req.file) {
             return res.status(400).json({ success: false, message: 'File tidak ditemukan.' });
         }
 
-        // On Vercel/Serverless, we can't reliably write to the local filesystem.
-        // For now, we'll try to save it to ../uploads/qris.jpg if path exists (local dev),
-        // or just return success if it's a buffer (to avoid 500 error), 
-        // with a note that persistence requires cloud storage.
-        
-        if (req.file.buffer) {
-            // Buffer mode (Vercel)
-            const targetPath = path.join(__dirname, '../uploads/qris.jpg');
-            try {
-                // Ensure directory exists
-                const dir = path.dirname(targetPath);
-                if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-                
-                fs.writeFileSync(targetPath, req.file.buffer);
-            } catch (err) {
-                console.error('Failed to write QR image to disk (likely ephemeral filesystem):', err.message);
-                // Return success anyway to avoid 500, but warn in logs. 
-                // Real fix would be cloud storage.
-            }
-        } else {
-            // Path mode (Local dev fallback)
-            const tempPath = req.file.path;
-            const targetPath = path.join(__dirname, '../uploads/qris.jpg');
-            fs.renameSync(tempPath, targetPath);
-        }
+        const buffer = req.file.buffer || fs.readFileSync(req.file.path);
+        const mimeType = req.file.mimetype || 'image/jpeg';
+        const base64 = `data:${mimeType};base64,${buffer.toString('base64')}`;
+
+        await pool.query(
+            `INSERT INTO settings (key, value, updated_at) VALUES ('qris_image', $1, NOW())
+             ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()`,
+            [base64]
+        );
 
         // Log activity
         await pool.query(
@@ -1478,8 +1462,21 @@ const uploadSettingsQR = async (req, res, next) => {
             ['admin', req.user.id, req.user.username, 'Update QRIS', 'Memperbarui QR Code ASTRAPAY', req.ip]
         );
 
-        res.json({ success: true, message: 'QRIS berhasil diperbarui.', url: '/uploads/qris.jpg' });
+        res.json({ success: true, message: 'QRIS berhasil diperbarui.' });
 
+    } catch (error) {
+        next(error);
+    }
+};
+
+// Get QRIS Image (public — returns base64 data URL)
+const getSettingsQR = async (req, res, next) => {
+    try {
+        const result = await pool.query(`SELECT value FROM settings WHERE key = 'qris_image'`);
+        if (!result.rows.length || !result.rows[0].value) {
+            return res.status(404).json({ success: false, message: 'QR image belum tersedia.' });
+        }
+        res.json({ success: true, image: result.rows[0].value });
     } catch (error) {
         next(error);
     }
@@ -1615,6 +1612,6 @@ module.exports = {
     getDashboard, getSales, getSaleDetail, getStock, adjustStock,
     uploadSales, uploadStock, getUploadHistory, downloadTemplate, generateReport,
     getCustomerAnalytics, getInventoryAnalytics, getSalesAnalytics, getPriceAnalytics,
-    uploadSettingsQR, recalculateFinancials, fixDatabase, recalculateTiers
+    uploadSettingsQR, getSettingsQR, recalculateFinancials, fixDatabase, recalculateTiers
 };
 

@@ -44,6 +44,9 @@ app.use('/api/parts', require('./routes/parts'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/dashboard', require('./routes/dashboard')); // New Dashboard Route
 
+// Public: QRIS image (served from DB, no auth required)
+app.get('/api/settings/qr', require('./controllers/adminController').getSettingsQR);
+
 // Health check
 app.get('/api/health', (req, res) => {
     res.json({ success: true, message: 'AMPConnect API is running', timestamp: new Date().toISOString() });
