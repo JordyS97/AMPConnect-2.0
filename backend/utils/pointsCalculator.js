@@ -46,4 +46,14 @@ const getTierColor = (tier) => {
     return colors[tier] || '#C0C0C0';
 };
 
-module.exports = { calculatePoints, determineTier, salesToNextTier, getTierColor, TIER_THRESHOLDS };
+/**
+ * Calculate tier after redemption, factoring in redeemed points
+ * Each redeemed point is worth 500,000 in net sales (inverse of calculatePoints)
+ */
+const calculateTier = (lifetimeNetSales, redeemedPoints = 0) => {
+    const redeemedEquivalentSales = redeemedPoints * 500000;
+    const effectiveNetSales = Math.max(0, lifetimeNetSales - redeemedEquivalentSales);
+    return determineTier(effectiveNetSales);
+};
+
+module.exports = { calculatePoints, determineTier, calculateTier, salesToNextTier, getTierColor, TIER_THRESHOLDS };
