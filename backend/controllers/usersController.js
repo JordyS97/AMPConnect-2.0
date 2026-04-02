@@ -260,6 +260,129 @@ const getActivityLogs = async (req, res, next) => {
     }
 };
 
+// Redeem Points
+const redeemPoints = async (req, res, next) => {
+    const client = await pool.connect();
+    try {
+        const { id } = req.params; // customer ID
+        const { reward_name, points_cost } = req.body;
+
+        if (!reward_name || !points_cost || points_cost <= 0) {
+            return res.status(400).json({ success: false, message: 'Nama reward dan jumlah poin tidak valid.' });
+        }
+
+        await client.query('BEGIN');
+
+        // Check customer
+        const custResult = await client.query('SELECT total_points, redeemed_points, tier FROM customers WHERE id = $1', [id]);
+        if (custResult.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ success: false, message: 'Customer tidak ditemukan.' });
+        }
+
+        const customer = custResult.rows[0];
+        const currentPoints = customer.total_points - (customer.redeemed_points || 0);
+
+        if (currentPoints < points_cost) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ success: false, message: 'Poin tidak mencukupi untuk penukaran ini.' });
+        }
+
+        // Insert redemptions log
+        await client.query(
+            'INSERT INTO redemptions (customer_id, reward_name, points_cost) VALUES ($1, $2, $3)',
+            [id, reward_name, points_cost]
+        );
+
+        // Update customer redeemed_points
+        const updateCustRes = await client.query(
+            'UPDATE customers SET redeemed_points = COALESCE(redeemed_points, 0) + $1, updated_at = NOW() WHERE id = $2 RETURNING *',
+            [points_cost, id]
+        );
+
+        const updatedCustomer = updateCustRes.rows[0];
+
+        // Need to calculate effective net sales and tier downgrade
+        const lifetimeSalesRes = await client.query('SELECT COALESCE(SUM(net_sales), 0) as lifetime_sales FROM transactions WHERE customer_id = $1', [id]);
+        const lifetimeSales = parseFloat(lifetimeSalesRes.rows[0].lifetime_sales);
+        const { calculateTier } = require('../utils/pointsCalculator');
+        
+        const newTier = calculateTier(lifetimeSales, updatedCustomer.redeemed_points || 0);
+        
+        if (newTier !== customer.tier) {
+            await client.query('UPDATE customers SET tier = $1, updated_at = NOW() WHERE id = $2', [newTier, id]);
+        }
+
+        // Log action
+        await client.query(
+            `INSERT INTO activity_logs (user_type, user_id, user_name, action, description, ip_address) VALUES ($1, $2, $3, $4, $5, $6)`,
+            ['admin', req.user.id, req.user.username, 'Redeem Points', `Penukaran poin: ${reward_name} (${points_cost} poin) untuk customer ID ${id}. Tier: ${newTier}`, req.ip]
+        );
+
+        await client.query('COMMIT');
+        
+        res.json({
+            success: true,
+            message: 'Penukaran poin berhasil.',
+            data: {
+                reward_name,
+                points_cost,
+                remaining_points: currentPoints - points_cost,
+                tier: newTier
+            }
+        });
+
+    } catch (error) {
+        await client.query('ROLLBACK');
+        next(error);
+    } finally {
+        client.release();
+    }
+};
+
+// Get Redemptions Log
+const getRedemptions = async (req, res, next) => {
+    try {
+        const { page = 1, limit = 20, search } = req.query;
+        const offset = (page - 1) * limit;
+
+        let query = `
+            SELECT r.*, c.name, c.no_customer 
+            FROM redemptions r 
+            JOIN customers c ON r.customer_id = c.id 
+            WHERE 1=1
+        `;
+        const params = [];
+        let pi = 1;
+
+        if (search) {
+            query += ` AND (c.name ILIKE $${pi} OR c.no_customer ILIKE $${pi} OR r.reward_name ILIKE $${pi})`;
+            params.push(`%${search}%`);
+            pi++;
+        }
+
+        const countQuery = `SELECT COUNT(*) FROM (${query}) sub`;
+        const countResult = await pool.query(countQuery, params);
+
+        query += ` ORDER BY r.created_at DESC LIMIT $${pi} OFFSET $${pi + 1}`;
+        params.push(parseInt(limit), parseInt(offset));
+
+        const result = await pool.query(query, params);
+
+        res.json({
+            success: true,
+            data: {
+                redemptions: result.rows,
+                total: parseInt(countResult.rows[0].count),
+                page: parseInt(page),
+                totalPages: Math.ceil(countResult.rows[0].count / limit),
+            }
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
 // Delete customer
 const deleteCustomer = async (req, res, next) => {
     try {
@@ -408,5 +531,5 @@ const uploadCustomers = async (req, res, next) => {
 
 module.exports = {
     getCustomers, addCustomer, editCustomer, resetCustomerPassword, toggleCustomerStatus, deleteCustomer, uploadCustomers,
-    getAdmins, createAdmin, editAdmin, getActivityLogs
+    getAdmins, createAdmin, editAdmin, getActivityLogs, redeemPoints, getRedemptions
 };

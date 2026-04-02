@@ -11,7 +11,7 @@ const {
 } = require('../controllers/adminController');
 const {
     getCustomers, addCustomer, editCustomer, resetCustomerPassword, toggleCustomerStatus, deleteCustomer, uploadCustomers,
-    getAdmins, createAdmin, editAdmin, getActivityLogs
+    getAdmins, createAdmin, editAdmin, getActivityLogs, redeemPoints, getRedemptions
 } = require('../controllers/usersController');
 const { validate } = require('../middleware/validator');
 const {
@@ -62,6 +62,10 @@ router.put('/users/customers/:id', validate(editCustomerSchema, 'body'), editCus
 router.put('/users/customers/:id/reset-password', validate(resetPasswordSchema, 'body'), resetCustomerPassword);
 router.put('/users/customers/:id/status', validate(toggleStatusSchema, 'body'), toggleCustomerStatus);
 router.delete('/users/customers/:id', deleteCustomer);
+router.post('/users/customers/:id/redeem', redeemPoints);
+
+// Redemptions Log
+router.get('/redemptions', getRedemptions);
 
 // Users - Admins
 router.get('/users/admins', getAdmins);

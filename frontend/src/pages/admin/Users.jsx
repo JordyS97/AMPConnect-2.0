@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/Toast';
 import TierBadge from '../../components/TierBadge';
-import { Search, UserPlus, Edit3, X, RefreshCw, ToggleLeft, ToggleRight, Shield, Trash2, Upload } from 'lucide-react';
+import { Search, UserPlus, Edit3, X, RefreshCw, ToggleLeft, ToggleRight, Shield, Trash2, Upload, Gift } from 'lucide-react';
 import { formatDate, formatNumber } from '../../utils/formatters';
 import api from '../../api/axios';
 
@@ -11,6 +11,7 @@ export default function UsersPage() {
     const [customers, setCustomers] = useState([]);
     const [admins, setAdmins] = useState([]);
     const [logs, setLogs] = useState([]);
+    const [redemptions, setRedemptions] = useState([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
     const [page, setPage] = useState(1);
@@ -26,7 +27,8 @@ export default function UsersPage() {
     useEffect(() => {
         if (activeTab === 'customers') fetchCustomers();
         else if (activeTab === 'admins') fetchAdmins();
-        else fetchLogs();
+        else if (activeTab === 'logs') fetchLogs();
+        else if (activeTab === 'redemptions') fetchRedemptions();
     }, [activeTab, page]);
 
     const fetchCustomers = async () => {
@@ -55,6 +57,16 @@ export default function UsersPage() {
             setLogs(res.data.data.logs);
             setTotalPages(res.data.data.totalPages);
         } catch (err) { addToast('Gagal memuat log', 'error'); }
+        finally { setLoading(false); }
+    };
+
+    const fetchRedemptions = async () => {
+        setLoading(true);
+        try {
+            const res = await api.get('/admin/redemptions', { params: { page, limit: 30 } });
+            setRedemptions(res.data.data.redemptions);
+            setTotalPages(res.data.data.totalPages);
+        } catch (err) { addToast('Gagal memuat riwayat penukaran', 'error'); }
         finally { setLoading(false); }
     };
 
@@ -126,9 +138,16 @@ export default function UsersPage() {
             } else if (modal.type === 'editAdmin') {
                 await api.put(`/admin/users/admins/${modal.data.id}`, formData);
                 addToast('Admin berhasil diperbarui', 'success');
+            } else if (modal.type === 'redeemPoints') {
+                const parts = formData.reward.split('|');
+                const pData = { reward_name: parts[0], points_cost: parseInt(parts[1]) };
+                await api.post(`/admin/users/customers/${modal.data.id}/redeem`, pData);
+                addToast('Poin berhasil ditukar', 'success');
             }
             setModal(null);
-            if (activeTab === 'customers') fetchCustomers(); else fetchAdmins();
+            if (activeTab === 'customers') fetchCustomers();
+            else if (activeTab === 'admins') fetchAdmins();
+            else if (activeTab === 'redemptions') fetchRedemptions();
         } catch (err) {
             addToast(err.response?.data?.message || 'Gagal menyimpan', 'error');
         } finally { setSaving(false); }
@@ -139,6 +158,7 @@ export default function UsersPage() {
         else if (type === 'editCustomer') setFormData({ name: data.name, email: data.email, phone: data.phone, address: data.address || '' });
         else if (type === 'addAdmin') setFormData({ username: '', password: '', name: '', role: 'admin' });
         else if (type === 'editAdmin') setFormData({ name: data.name, role: data.role });
+        else if (type === 'redeemPoints') setFormData({ reward: 'Free Oli MPX2 0.8|200' });
         setModal({ type, data });
     };
 
@@ -149,6 +169,7 @@ export default function UsersPage() {
             <div className="tabs">
                 <button className={`tab ${activeTab === 'customers' ? 'active' : ''}`} onClick={() => { setActiveTab('customers'); setPage(1); }}>Customer</button>
                 <button className={`tab ${activeTab === 'admins' ? 'active' : ''}`} onClick={() => { setActiveTab('admins'); setPage(1); }}>Admin</button>
+                <button className={`tab ${activeTab === 'redemptions' ? 'active' : ''}`} onClick={() => { setActiveTab('redemptions'); setPage(1); }}>Penukaran Poin</button>
                 <button className={`tab ${activeTab === 'logs' ? 'active' : ''}`} onClick={() => { setActiveTab('logs'); setPage(1); }}>Activity Logs</button>
             </div>
 
@@ -191,6 +212,7 @@ export default function UsersPage() {
                                                 </td>
                                                 <td>
                                                     <div style={{ display: 'flex', gap: 4 }}>
+                                                        <button onClick={() => openModal('redeemPoints', c)} className="btn btn-primary btn-sm" title="Tukar Poin"><Gift size={14} /></button>
                                                         <button onClick={() => openModal('editCustomer', c)} className="btn btn-ghost btn-sm" title="Edit"><Edit3 size={14} /></button>
                                                         <button onClick={() => resetPassword(c.id)} className="btn btn-ghost btn-sm" title="Reset Password"><RefreshCw size={14} /></button>
                                                         <button onClick={() => handleDelete(c.id)} className="btn btn-ghost btn-sm" title="Hapus" style={{ color: 'var(--danger)' }}><Trash2 size={14} /></button>
@@ -287,6 +309,44 @@ export default function UsersPage() {
                 </div>
             )}
 
+            {/* Redemptions Tab */}
+            {activeTab === 'redemptions' && (
+                <div className="card">
+                    {loading ? <div className="loading-spinner"><div className="spinner"></div></div> : redemptions.length === 0 ? (
+                        <div className="empty-state"><p>Belum ada riwayat penukaran</p></div>
+                    ) : (
+                        <>
+                            <div className="table-container">
+                                <table>
+                                    <thead><tr><th>Tanggal</th><th>Customer</th><th>No. Customer</th><th>Reward</th><th>Poin Terpakai</th></tr></thead>
+                                    <tbody>
+                                        {redemptions.map((r, i) => (
+                                            <tr key={i}>
+                                                <td style={{ whiteSpace: 'nowrap' }}>{formatDate(r.created_at)}</td>
+                                                <td><strong>{r.name || '-'}</strong></td>
+                                                <td style={{ fontFamily: 'monospace' }}>{r.no_customer || '-'}</td>
+                                                <td><span className="badge badge-success">{r.reward_name}</span></td>
+                                                <td>{r.points_cost} Poin</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {totalPages > 1 && (
+                                <div className="pagination">
+                                    <button disabled={page <= 1} onClick={() => setPage(page - 1)}>← Prev</button>
+                                    {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                                        const p = i + 1;
+                                        return <button key={p} className={p === page ? 'active' : ''} onClick={() => setPage(p)}>{p}</button>;
+                                    })}
+                                    <button disabled={page >= totalPages} onClick={() => setPage(page + 1)}>Next →</button>
+                                </div>
+                            )}
+                        </>
+                    )}
+                </div>
+            )}
+
             {/* Modal */}
             {modal && (
                 <div className="modal-overlay" onClick={() => setModal(null)}>
@@ -295,7 +355,8 @@ export default function UsersPage() {
                             <h2>
                                 {modal.type === 'addCustomer' ? 'Tambah Customer' :
                                     modal.type === 'editCustomer' ? 'Edit Customer' :
-                                        modal.type === 'addAdmin' ? 'Tambah Admin' : 'Edit Admin'}
+                                        modal.type === 'addAdmin' ? 'Tambah Admin' : 
+                                            modal.type === 'redeemPoints' ? 'Tukar Poin' : 'Edit Admin'}
                             </h2>
                             <button onClick={() => setModal(null)} className="btn btn-ghost btn-icon"><X size={20} /></button>
                         </div>
@@ -361,6 +422,26 @@ export default function UsersPage() {
                                             <option value="admin">Admin</option>
                                             <option value="super_admin">Super Admin</option>
                                         </select>
+                                    </div>
+                                </>
+                            )}
+                            {modal.type === 'redeemPoints' && (
+                                <>
+                                    <div style={{ marginBottom: 16, padding: 12, backgroundColor: 'var(--bg-light)', borderRadius: 8 }}>
+                                        <p style={{ margin: 0 }}><strong>Customer:</strong> {modal.data.name} ({modal.data.no_customer})</p>
+                                        <p style={{ margin: '4px 0 0 0', color: 'var(--primary)' }}><strong>Poin Tersedia:</strong> {formatNumber(modal.data.total_points - (modal.data.redeemed_points || 0))}</p>
+                                    </div>
+                                    <div className="form-group">
+                                        <label>Pilih Reward</label>
+                                        <select className="form-control" value={formData.reward || 'Free Oli MPX2 0.8|200'}
+                                            onChange={(e) => setFormData({ ...formData, reward: e.target.value })}>
+                                            <option value="Free Oli MPX2 0.8|200">Free Oli MPX2 0.8 (200 Poin)</option>
+                                            <option value="Free Helm|500">Free Helm (500 Poin)</option>
+                                            <option value="Free Ban|600">Free Ban (600 Poin)</option>
+                                        </select>
+                                    </div>
+                                    <div className="alert alert-warning" style={{ marginTop: 16, fontSize: '0.9rem', color: 'var(--warning)', backgroundColor: 'rgba(245, 158, 11, 0.1)', padding: 12, borderRadius: 6, border: '1px solid var(--warning)' }}>
+                                        <strong>Peringatan!</strong> Penukaran poin dapat mengurangi total order efektif. Jika turun di bawah batas tier, customer akan otomatis mengalami downgrade tier.
                                     </div>
                                 </>
                             )}

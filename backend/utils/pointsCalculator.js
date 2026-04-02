@@ -14,23 +14,23 @@ const TIER_THRESHOLDS = {
 };
 
 /**
- * Determine tier based on total lifetime net sales
+ * Determine tier based on effective net sales (lifetime sales minus redeemed equivalent)
  */
-const determineTier = (lifetimeNetSales) => {
-    if (lifetimeNetSales >= TIER_THRESHOLDS.MOON_STONE) return 'Moon Stone';
-    if (lifetimeNetSales >= TIER_THRESHOLDS.DIAMOND) return 'Diamond';
-    if (lifetimeNetSales >= TIER_THRESHOLDS.GOLD) return 'Gold';
+const determineTier = (effectiveNetSales) => {
+    if (effectiveNetSales >= TIER_THRESHOLDS.MOON_STONE) return 'Moon Stone';
+    if (effectiveNetSales >= TIER_THRESHOLDS.DIAMOND) return 'Diamond';
+    if (effectiveNetSales >= TIER_THRESHOLDS.GOLD) return 'Gold';
     return 'Silver';
 };
 
 /**
  * Get sales needed for next tier
  */
-const salesToNextTier = (lifetimeNetSales) => {
-    if (lifetimeNetSales >= TIER_THRESHOLDS.MOON_STONE) return { nextTier: null, salesNeeded: 0 };
-    if (lifetimeNetSales >= TIER_THRESHOLDS.DIAMOND) return { nextTier: 'Moon Stone', salesNeeded: TIER_THRESHOLDS.MOON_STONE - lifetimeNetSales };
-    if (lifetimeNetSales >= TIER_THRESHOLDS.GOLD) return { nextTier: 'Diamond', salesNeeded: TIER_THRESHOLDS.DIAMOND - lifetimeNetSales };
-    return { nextTier: 'Gold', salesNeeded: TIER_THRESHOLDS.GOLD - lifetimeNetSales };
+const salesToNextTier = (effectiveNetSales) => {
+    if (effectiveNetSales >= TIER_THRESHOLDS.MOON_STONE) return { nextTier: null, salesNeeded: 0 };
+    if (effectiveNetSales >= TIER_THRESHOLDS.DIAMOND) return { nextTier: 'Moon Stone', salesNeeded: TIER_THRESHOLDS.MOON_STONE - effectiveNetSales };
+    if (effectiveNetSales >= TIER_THRESHOLDS.GOLD) return { nextTier: 'Diamond', salesNeeded: TIER_THRESHOLDS.DIAMOND - effectiveNetSales };
+    return { nextTier: 'Gold', salesNeeded: TIER_THRESHOLDS.GOLD - effectiveNetSales };
 };
 
 /**

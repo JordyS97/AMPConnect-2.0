@@ -657,13 +657,13 @@ const uploadSales = async (req, res, next) => {
                     WHERE c.id = sub.customer_id
                 `, [cidArray]);
 
-                // Bulk tier update based on lifetime net sales
+                // Bulk tier update based on lifetime net sales minus redeemed equivalent
                 await pool.query(`
                     UPDATE customers c
                     SET tier = CASE
-                        WHEN sub.total_sales >= 200000000 THEN 'Moon Stone'
-                        WHEN sub.total_sales >= 100000000 THEN 'Diamond'
-                        WHEN sub.total_sales >= 10000000 THEN 'Gold'
+                        WHEN (sub.total_sales - COALESCE(c.redeemed_points * 500000, 0)) >= 200000000 THEN 'Moon Stone'
+                        WHEN (sub.total_sales - COALESCE(c.redeemed_points * 500000, 0)) >= 100000000 THEN 'Diamond'
+                        WHEN (sub.total_sales - COALESCE(c.redeemed_points * 500000, 0)) >= 10000000 THEN 'Gold'
                         ELSE 'Silver'
                     END
                     FROM (

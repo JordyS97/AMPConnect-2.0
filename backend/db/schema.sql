@@ -3,12 +3,14 @@
 -- Drop existing tables
 DROP TABLE IF EXISTS activity_logs CASCADE;
 DROP TABLE IF EXISTS upload_history CASCADE;
+DROP TABLE IF EXISTS redemptions CASCADE;
 DROP TABLE IF EXISTS transaction_items CASCADE;
 DROP TABLE IF EXISTS transactions CASCADE;
 DROP TABLE IF EXISTS otp_codes CASCADE;
 DROP TABLE IF EXISTS parts CASCADE;
 DROP TABLE IF EXISTS customers CASCADE;
 DROP TABLE IF EXISTS admins CASCADE;
+
 
 -- Admins table
 CREATE TABLE admins (
@@ -36,8 +38,18 @@ CREATE TABLE customers (
   tier VARCHAR(20) DEFAULT 'Silver' CHECK (tier IN ('Silver', 'Gold', 'Diamond', 'Moon Stone')),
   is_verified BOOLEAN DEFAULT false,
   status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
+  redeemed_points INTEGER DEFAULT 0,
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Redemptions table
+CREATE TABLE redemptions (
+  id SERIAL PRIMARY KEY,
+  customer_id INTEGER REFERENCES customers(id),
+  reward_name VARCHAR(255) NOT NULL,
+  points_cost INTEGER NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW()
 );
 
 -- OTP codes table
