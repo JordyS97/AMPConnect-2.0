@@ -40,7 +40,7 @@ const addCustomerSchema = z.object({
 const editCustomerSchema = addCustomerSchema;
 
 const resetPasswordSchema = z.object({
-    newPassword: z.string().min(6),
+    newPassword: z.string().min(6).optional(),
 });
 
 const toggleStatusSchema = z.object({
