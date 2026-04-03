@@ -16,6 +16,7 @@ import Profile from './pages/customer/Profile';
 import PurchaseHistory from './pages/customer/PurchaseHistory';
 import SpendingAnalytics from './pages/customer/SpendingAnalytics';
 import Rewards from './pages/customer/Rewards';
+import Redeem from './pages/customer/Redeem';
 import FavoriteParts from './pages/customer/FavoriteParts';
 import Comparison from './pages/customer/Comparison';
 
@@ -84,6 +85,7 @@ export default function App() {
                         <Route path="/customer/history" element={<CustomerRoute><PurchaseHistory /></CustomerRoute>} />
                         <Route path="/customer/spending" element={<CustomerRoute><SpendingAnalytics /></CustomerRoute>} />
                         <Route path="/customer/rewards" element={<CustomerRoute><Rewards /></CustomerRoute>} />
+                        <Route path="/customer/redeem" element={<CustomerRoute><Redeem /></CustomerRoute>} />
                         <Route path="/customer/favorites" element={<CustomerRoute><FavoriteParts /></CustomerRoute>} />
                         <Route path="/customer/comparison" element={<CustomerRoute><Comparison /></CustomerRoute>} />
 

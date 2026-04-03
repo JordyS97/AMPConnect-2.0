@@ -618,8 +618,93 @@ const getYearEndReport = async (req, res, next) => {
     }
 };
 
+// Customer self-redemption
+const REDEEMABLE_REWARDS = [
+    { id: 'oil_mpx_spx', name: 'Free Oil MPX/SPX', points_cost: 400 },
+    { id: 'tire', name: 'Free Tire', points_cost: 800 },
+    { id: 'helmet', name: 'Free Helmet', points_cost: 500 },
+];
+
+const redeemCustomerPoints = async (req, res, next) => {
+    const client = await pool.connect();
+    try {
+        const customerId = req.user.id;
+        const { reward_id } = req.body;
+
+        const reward = REDEEMABLE_REWARDS.find(r => r.id === reward_id);
+        if (!reward) {
+            return res.status(400).json({ success: false, message: 'Reward tidak valid.' });
+        }
+
+        await client.query('BEGIN');
+
+        const custResult = await client.query(
+            'SELECT total_points, redeemed_points, tier FROM customers WHERE id = $1',
+            [customerId]
+        );
+        if (custResult.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ success: false, message: 'Customer tidak ditemukan.' });
+        }
+
+        const customer = custResult.rows[0];
+        const currentPoints = customer.total_points - (customer.redeemed_points || 0);
+
+        if (currentPoints < reward.points_cost) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ success: false, message: 'Poin tidak mencukupi untuk penukaran ini.' });
+        }
+
+        await client.query(
+            'INSERT INTO redemptions (customer_id, reward_name, points_cost) VALUES ($1, $2, $3)',
+            [customerId, reward.name, reward.points_cost]
+        );
+
+        await client.query(
+            'UPDATE customers SET redeemed_points = COALESCE(redeemed_points, 0) + $1, updated_at = NOW() WHERE id = $2',
+            [reward.points_cost, customerId]
+        );
+
+        await client.query('COMMIT');
+
+        res.json({
+            success: true,
+            message: `Penukaran ${reward.name} berhasil!`,
+            data: {
+                reward_name: reward.name,
+                points_cost: reward.points_cost,
+                remaining_points: currentPoints - reward.points_cost,
+            }
+        });
+    } catch (error) {
+        await client.query('ROLLBACK');
+        next(error);
+    } finally {
+        client.release();
+    }
+};
+
+const getRedeemableRewards = async (req, res) => {
+    const customerId = req.user.id;
+    const custResult = await pool.query(
+        'SELECT total_points, redeemed_points FROM customers WHERE id = $1',
+        [customerId]
+    );
+    const customer = custResult.rows[0] || {};
+    const currentPoints = (customer.total_points || 0) - (customer.redeemed_points || 0);
+
+    res.json({
+        success: true,
+        data: {
+            currentPoints,
+            rewards: REDEEMABLE_REWARDS,
+        }
+    });
+};
+
 module.exports = {
     getDashboard, getProfile, updateProfile, changePassword,
     getPointsHistory, getTransactions, getTrends,
-    getFavoriteParts, getComparison, getYearEndReport
+    getFavoriteParts, getComparison, getYearEndReport,
+    redeemCustomerPoints, getRedeemableRewards
 };

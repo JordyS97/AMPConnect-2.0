@@ -4,14 +4,20 @@ import { useAuth } from '../context/AuthContext';
 import {
     LayoutDashboard, Package, Star, TrendingUp, CreditCard, User, LogOut, Menu, X,
     BarChart3, Upload, Users, FileText, Settings, ShoppingCart, Layers, Percent,
-    Clock, Gift, Heart, Calendar
+    Clock, Gift, Heart, Calendar, ChevronDown, ChevronRight, Droplets, Circle, HardHat
 } from 'lucide-react';
 
 const customerLinks = [
     { path: '/customer/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { path: '/customer/history', label: 'Riwayat Pembelian', icon: Clock },
     { path: '/customer/spending', label: 'Analisis Belanja', icon: TrendingUp },
-    { path: '/customer/rewards', label: 'Reward Points', icon: Gift },
+    {
+        label: 'Reward Points', icon: Gift,
+        submenu: [
+            { path: '/customer/rewards', label: 'Overview', icon: Star },
+            { path: '/customer/redeem', label: 'Tukar Poin', icon: Gift },
+        ]
+    },
     { path: '/customer/favorites', label: 'Part Favorit', icon: Heart },
     { path: '/customer/comparison', label: 'Laporan', icon: FileText },
     { path: '/customer/parts', label: 'Stok Part', icon: Package },
@@ -36,6 +42,7 @@ const adminLinks = [
 export default function Sidebar({ type = 'customer' }) {
     const [collapsed, setCollapsed] = useState(false);
     const [mobileOpen, setMobileOpen] = useState(false);
+    const [openSubmenus, setOpenSubmenus] = useState({});
     const location = useLocation();
     const navigate = useNavigate();
     const { user, logout } = useAuth();
@@ -46,6 +53,12 @@ export default function Sidebar({ type = 'customer' }) {
         logout();
         navigate(type === 'admin' ? '/admin/login' : '/customer/login');
     };
+
+    const toggleSubmenu = (label) => {
+        setOpenSubmenus(prev => ({ ...prev, [label]: !prev[label] }));
+    };
+
+    const isSubmenuActive = (submenu) => submenu.some(item => location.pathname === item.path);
 
     return (
         <>
@@ -111,8 +124,62 @@ export default function Sidebar({ type = 'customer' }) {
                     {/* Nav Links */}
                     <nav style={{ padding: '12px 0', flex: 1 }}>
                         {links.map((link) => {
-                            const isActive = location.pathname === link.path;
                             const Icon = link.icon;
+
+                            if (link.submenu) {
+                                const active = isSubmenuActive(link.submenu);
+                                const open = openSubmenus[link.label] !== undefined
+                                    ? openSubmenus[link.label]
+                                    : active;
+                                return (
+                                    <div key={link.label}>
+                                        <button
+                                            onClick={() => toggleSubmenu(link.label)}
+                                            style={{
+                                                display: 'flex', alignItems: 'center', gap: 12,
+                                                padding: '12px 20px', margin: '2px 8px', borderRadius: 'var(--radius)',
+                                                color: active ? 'white' : '#94a3b8',
+                                                background: active ? 'rgba(255,255,255,0.08)' : 'transparent',
+                                                border: 'none', width: 'calc(100% - 16px)',
+                                                cursor: 'pointer', fontSize: '0.9rem', fontWeight: active ? 600 : 400,
+                                                transition: 'all 0.2s ease', textAlign: 'left',
+                                            }}
+                                        >
+                                            <Icon size={20} />
+                                            <span style={{ flex: 1 }}>{link.label}</span>
+                                            {open ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                                        </button>
+                                        {open && (
+                                            <div style={{ paddingLeft: 12 }}>
+                                                {link.submenu.map((sub) => {
+                                                    const isSubActive = location.pathname === sub.path;
+                                                    const SubIcon = sub.icon;
+                                                    return (
+                                                        <Link
+                                                            key={sub.path}
+                                                            to={sub.path}
+                                                            onClick={() => setMobileOpen(false)}
+                                                            style={{
+                                                                display: 'flex', alignItems: 'center', gap: 12,
+                                                                padding: '10px 20px', margin: '2px 8px', borderRadius: 'var(--radius)',
+                                                                color: isSubActive ? 'white' : '#94a3b8',
+                                                                background: isSubActive ? 'var(--primary)' : 'transparent',
+                                                                textDecoration: 'none', fontSize: '0.85rem', fontWeight: isSubActive ? 600 : 400,
+                                                                transition: 'all 0.2s ease',
+                                                            }}
+                                                        >
+                                                            <SubIcon size={16} />
+                                                            {sub.label}
+                                                        </Link>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            }
+
+                            const isActive = location.pathname === link.path;
                             return (
                                 <Link
                                     key={link.path}
