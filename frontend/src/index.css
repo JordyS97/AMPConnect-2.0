@@ -1405,3 +1405,129 @@ tbody tr:last-child td {
     grid-template-columns: 1fr;
   }
 }
+
+/* Rewards Page Styles */
+.rewards-page {
+  padding-bottom: 2rem;
+}
+
+.rewards-hero {
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  color: white;
+  padding: 3rem 2rem;
+  border-radius: var(--radius-lg);
+  margin-bottom: 2.5rem;
+  position: relative;
+  overflow: hidden;
+  box-shadow: var(--shadow-lg);
+}
+
+.rewards-hero::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 300px;
+  height: 300px;
+  background: radial-gradient(circle, rgba(255,255,255,0.15) 0%, transparent 70%);
+  transform: translate(30%, -30%);
+}
+
+.reward-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.reward-card {
+  background: var(--bg-card);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  border: 1px solid var(--border-light);
+  display: flex;
+  flex-direction: column;
+}
+
+.reward-card:hover {
+  transform: translateY(-5px);
+  box-shadow: var(--shadow-md);
+}
+
+.reward-card-image {
+  height: 160px;
+  background-size: cover;
+  background-position: center;
+  position: relative;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.reward-card-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  backdrop-filter: blur(4px);
+  z-index: 1;
+}
+
+.reward-card-content {
+  padding: 1.25rem;
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.reward-card-title {
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+  color: var(--text);
+  font-size: 1.1rem;
+}
+
+.reward-card-points {
+  color: var(--primary);
+  font-weight: 800;
+  font-size: 1.25rem;
+  margin-bottom: 1rem;
+}
+
+.reward-card-btn {
+  width: 100%;
+  padding: 0.75rem;
+  border-radius: var(--radius);
+  font-weight: 600;
+  transition: all 0.2s;
+  cursor: pointer;
+  border: none;
+  font-family: inherit;
+}
+
+.reward-card-btn.redeemable {
+  background-color: var(--primary);
+  color: white;
+}
+
+.reward-card-btn.redeemable:hover {
+  background-color: var(--primary-dark);
+  box-shadow: var(--shadow-md);
+}
+
+.reward-card-btn.locked {
+  background-color: var(--bg);
+  color: var(--text-light);
+  cursor: not-allowed;
+  border: 1px solid var(--border);
+}
+
+@media (max-width: 1024px) {
+  .rewards-grid {
+    grid-template-columns: 1fr;
+  }
+}

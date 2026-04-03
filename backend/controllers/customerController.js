@@ -33,11 +33,16 @@ const getDashboard = async (req, res, next) => {
             [customerId]
         );
 
-        // Get recent transactions (last 5)
+        // Get recent activity (purchases & redemptions - last 5)
         const recentTx = await pool.query(
-            `SELECT no_faktur, tanggal, net_sales, points_earned 
-       FROM transactions WHERE customer_id = $1 
-       ORDER BY tanggal DESC LIMIT 5`,
+            `SELECT * FROM (
+                SELECT no_faktur, tanggal, net_sales, points_earned, 0 as points_used, 'Pembelian' as type
+                FROM transactions WHERE customer_id = $1
+                UNION ALL
+                SELECT NULL as no_faktur, created_at as tanggal, 0 as net_sales, 0 as points_earned, points_cost as points_used, 'Penukaran' as type
+                FROM redemptions WHERE customer_id = $1
+            ) as combined
+            ORDER BY tanggal DESC LIMIT 5`,
             [customerId]
         );
 
@@ -155,35 +160,51 @@ const getPointsHistory = async (req, res, next) => {
         const { page = 1, limit = 20, startDate, endDate } = req.query;
         const offset = (page - 1) * limit;
 
-        let query = `SELECT no_faktur, tanggal as date, 'Pembelian' as description, no_faktur as invoice, 
-                 points_earned, 0 as points_used
-                 FROM transactions WHERE customer_id = $1`;
-        const params = [req.user.id];
+        const baseParams = [req.user.id];
         let paramIndex = 2;
+        let dateFilter = '';
+        const filterParams = [];
 
         if (startDate) {
-            query += ` AND tanggal >= $${paramIndex}`;
-            params.push(startDate);
+            dateFilter += ` AND date >= $${paramIndex}`;
+            filterParams.push(startDate);
             paramIndex++;
         }
         if (endDate) {
-            query += ` AND tanggal <= $${paramIndex}`;
-            params.push(endDate);
+            dateFilter += ` AND date <= $${paramIndex}`;
+            filterParams.push(endDate);
             paramIndex++;
         }
 
-        query += ` ORDER BY tanggal DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
-        params.push(parseInt(limit), parseInt(offset));
-
-        const result = await pool.query(query, params);
+        const query = `
+            SELECT * FROM (
+                SELECT id, tanggal as date, 'Pembelian' as description, no_faktur as invoice, 
+                       points_earned as points_earned, 0 as points_used
+                FROM transactions WHERE customer_id = $1
+                UNION ALL
+                SELECT id, created_at as date, 'Penukaran: ' || reward_name as description, 
+                       NULL as invoice, 0 as points_earned, points_cost as points_used
+                FROM redemptions WHERE customer_id = $1
+            ) as combined
+            WHERE 1=1 ${dateFilter}
+            ORDER BY date DESC 
+            LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+        `;
+        
+        const queryParams = [req.user.id, ...filterParams, parseInt(limit), parseInt(offset)];
+        const result = await pool.query(query, queryParams);
 
         // Get total count
-        let countQuery = 'SELECT COUNT(*) FROM transactions WHERE customer_id = $1';
-        const countParams = [req.user.id];
-        if (startDate) { countQuery += ` AND tanggal >= $2`; countParams.push(startDate); }
-        if (endDate) { countQuery += ` AND tanggal <= $${countParams.length + 1}`; countParams.push(endDate); }
+        const countQuery = `
+            SELECT COUNT(*) FROM (
+                SELECT tanggal as date, customer_id FROM transactions
+                UNION ALL
+                SELECT created_at as date, customer_id FROM redemptions
+            ) as combined
+            WHERE customer_id = $1 ${dateFilter}
+        `;
+        const countResult = await pool.query(countQuery, [req.user.id, ...filterParams]);
 
-        const countResult = await pool.query(countQuery, countParams);
 
         // Get customer total points
         const customer = await pool.query('SELECT total_points, tier, redeemed_points FROM customers WHERE id = $1', [req.user.id]);
@@ -618,8 +639,63 @@ const getYearEndReport = async (req, res, next) => {
     }
 };
 
+// Redeem points for a reward
+const redeemPoints = async (req, res, next) => {
+    try {
+        const customerId = req.user.id;
+        const { reward_name, points_cost } = req.body;
+
+        if (!reward_name || !points_cost || points_cost <= 0) {
+            return res.status(400).json({ success: false, message: 'Data reward tidak valid.' });
+        }
+
+        // Get current points
+        const customer = await pool.query(
+            'SELECT total_points, redeemed_points FROM customers WHERE id = $1',
+            [customerId]
+        );
+        const { total_points, redeemed_points } = customer.rows[0];
+        const availablePoints = total_points - (redeemed_points || 0);
+
+        if (points_cost > availablePoints) {
+            return res.status(400).json({ success: false, message: 'Poin tidak mencukupi.' });
+        }
+
+        // Record redemption and update redeemed_points atomically
+        await pool.query('BEGIN');
+        await pool.query(
+            'INSERT INTO redemptions (customer_id, reward_name, points_cost) VALUES ($1, $2, $3)',
+            [customerId, reward_name, points_cost]
+        );
+        await pool.query(
+            'UPDATE customers SET redeemed_points = redeemed_points + $1, updated_at = NOW() WHERE id = $2',
+            [points_cost, customerId]
+        );
+        await pool.query('COMMIT');
+
+        res.json({ success: true, message: `Berhasil menukar ${points_cost} poin untuk ${reward_name}.` });
+    } catch (error) {
+        await pool.query('ROLLBACK').catch(() => {});
+        next(error);
+    }
+};
+
+// Get redemption history
+const getRedemptionHistory = async (req, res, next) => {
+    try {
+        const result = await pool.query(
+            'SELECT reward_name, points_cost, created_at FROM redemptions WHERE customer_id = $1 ORDER BY created_at DESC LIMIT 20',
+            [req.user.id]
+        );
+        res.json({ success: true, data: result.rows });
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     getDashboard, getProfile, updateProfile, changePassword,
     getPointsHistory, getTransactions, getTrends,
-    getFavoriteParts, getComparison, getYearEndReport
+    getFavoriteParts, getComparison, getYearEndReport,
+    redeemPoints, getRedemptionHistory
 };

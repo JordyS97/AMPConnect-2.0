@@ -124,10 +124,20 @@ export default function Dashboard() {
                         <tbody>
                             {recentTx.map((tx, i) => (
                                 <tr key={i}>
-                                    <td style={{ fontFamily: 'monospace', color: 'var(--primary)', fontWeight: 500 }}>{tx.no_faktur}</td>
+                                    <td style={{ fontFamily: 'monospace', color: tx.type === 'Penukaran' ? 'var(--text-secondary)' : 'var(--primary)', fontWeight: 500 }}>
+                                        {tx.no_faktur || tx.type}
+                                    </td>
                                     <td>{formatDate(tx.tanggal)}</td>
-                                    <td style={{ fontWeight: 600 }}>{formatCurrency(tx.net_sales)}</td>
-                                    <td><span className="badge badge-success">+{tx.points_earned}</span></td>
+                                    <td style={{ fontWeight: 600, color: tx.type === 'Penukaran' ? 'var(--danger)' : 'inherit' }}>
+                                        {tx.type === 'Penukaran' ? 'Tukar Poin' : formatCurrency(tx.net_sales)}
+                                    </td>
+                                    <td>
+                                        {tx.points_earned > 0 ? (
+                                            <span className="badge badge-success">+{tx.points_earned}</span>
+                                        ) : (
+                                            <span className="badge badge-danger">-{tx.points_used}</span>
+                                        )}
+                                    </td>
                                 </tr>
                             ))}
                             {recentTx.length === 0 && <tr><td colSpan="4" className="text-center">Belum ada transaksi</td></tr>}

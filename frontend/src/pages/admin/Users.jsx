@@ -195,7 +195,7 @@ export default function UsersPage() {
                         <>
                             <div className="table-container">
                                 <table>
-                                    <thead><tr><th>No. Customer</th><th>Nama</th><th>Email</th><th>Telepon</th><th>Tier</th><th>Poin</th><th>Status</th><th>Aksi</th></tr></thead>
+                                    <thead><tr><th>No. Customer</th><th>Nama</th><th>Email</th><th>Telepon</th><th>Tier</th><th title="Total Poin yang bisa ditukarkan saat ini">Poin (Tersedia)</th><th>Status</th><th>Aksi</th></tr></thead>
                                     <tbody>
                                         {customers.map(c => (
                                             <tr key={c.id}>
@@ -204,7 +204,9 @@ export default function UsersPage() {
                                                 <td>{c.email}</td>
                                                 <td>{c.phone || '-'}</td>
                                                 <td><TierBadge tier={c.tier} /></td>
-                                                <td>{formatNumber(c.total_points)}</td>
+                                                <td title={`Lifetime Poin: ${formatNumber(c.total_points || 0)}`}>
+                                                    {formatNumber((c.total_points || 0) - (c.redeemed_points || 0))}
+                                                </td>
                                                 <td>
                                                     <button onClick={() => toggleStatus(c.id)} className="btn btn-ghost btn-sm" title={c.is_active ? 'Nonaktifkan' : 'Aktifkan'}>
                                                         {c.is_active ? <ToggleRight size={20} color="var(--success)" /> : <ToggleLeft size={20} color="var(--text-light)" />}
@@ -433,11 +435,19 @@ export default function UsersPage() {
                                     </div>
                                     <div className="form-group">
                                         <label>Pilih Reward</label>
-                                        <select className="form-control" value={formData.reward || 'Free Oli MPX2 0.8|200'}
+                                        <select className="form-control" value={formData.reward || 'Voucher Diskon 5%|10'}
                                             onChange={(e) => setFormData({ ...formData, reward: e.target.value })}>
-                                            <option value="Free Oli MPX2 0.8|200">Free Oli MPX2 0.8 (200 Poin)</option>
-                                            <option value="Free Helm|500">Free Helm (500 Poin)</option>
-                                            <option value="Free Ban|600">Free Ban (600 Poin)</option>
+                                            <option value="Voucher Diskon 5%|10">Voucher Diskon 5% (10 Poin)</option>
+                                            <option value="Voucher Diskon 10%|25">Voucher Diskon 10% (25 Poin)</option>
+                                            <option value="Gratis Ongkir|15">Gratis Ongkir (15 Poin)</option>
+                                            <option value="Voucher Belanja Rp 50.000|50">Voucher Belanja Rp 50.000 (50 Poin)</option>
+                                            <option value="Konsultasi Part Gratis|30">Konsultasi Part Gratis (30 Poin)</option>
+                                            <option value="Voucher Belanja Rp 150.000|100">Voucher Belanja Rp 150.000 (100 Poin)</option>
+                                            <optgroup label="Physical Rewards (Internal)">
+                                                <option value="Free Oli MPX2 0.8|200">Free Oli MPX2 0.8 (200 Poin)</option>
+                                                <option value="Free Helm|500">Free Helm (500 Poin)</option>
+                                                <option value="Free Ban|600">Free Ban (600 Poin)</option>
+                                            </optgroup>
                                         </select>
                                     </div>
                                     <div className="alert alert-warning" style={{ marginTop: 16, fontSize: '0.9rem', color: 'var(--warning)', backgroundColor: 'rgba(245, 158, 11, 0.1)', padding: 12, borderRadius: 6, border: '1px solid var(--warning)' }}>

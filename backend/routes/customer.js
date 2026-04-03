@@ -4,7 +4,8 @@ const { verifyToken, isCustomer } = require('../middleware/auth');
 const {
     getDashboard, getProfile, updateProfile, changePassword,
     getPointsHistory, getTransactions, getTrends,
-    getFavoriteParts, getComparison, getYearEndReport
+    getFavoriteParts, getComparison, getYearEndReport,
+    redeemPoints, getRedemptionHistory
 } = require('../controllers/customerController');
 const { validate } = require('../middleware/validator');
 const { updateProfileSchema, changePasswordSchema } = require('../utils/schemas');
@@ -21,5 +22,7 @@ router.get('/trends', getTrends);
 router.get('/favorites', getFavoriteParts);
 router.get('/comparison', getComparison);
 router.get('/year-end-report', getYearEndReport);
+router.post('/redeem', redeemPoints);
+router.get('/redemptions', getRedemptionHistory);
 
 module.exports = router;
