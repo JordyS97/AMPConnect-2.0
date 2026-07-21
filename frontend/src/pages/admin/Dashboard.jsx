@@ -6,6 +6,7 @@ import { formatCurrency, formatNumber, formatPercent } from '../../utils/formatt
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Title, Tooltip, Legend, Filler } from 'chart.js';
 import { Line, Pie, Bar, Doughnut } from 'react-chartjs-2';
 import api from '../../api/axios';
+import { seriesColors, SERIES } from '../../utils/chartPalette';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Title, Tooltip, Legend, Filler);
 
@@ -51,7 +52,7 @@ export default function AdminDashboard() {
         datasets: [{
             label: 'Net Sales',
             data: salesTrend.map(s => s.total),
-            borderColor: '#2563eb',
+            borderColor: SERIES[0],
             backgroundColor: (context) => {
                 const ctx = context.chart.ctx;
                 const gradient = ctx.createLinearGradient(0, 0, 0, 400);
@@ -63,14 +64,14 @@ export default function AdminDashboard() {
             tension: 0.4,
             pointRadius: 0,
             pointHoverRadius: 6,
-            pointHoverBackgroundColor: '#2563eb',
+            pointHoverBackgroundColor: SERIES[0],
             pointHoverBorderColor: '#fff',
             pointHoverBorderWidth: 2,
             borderWidth: 3
         }]
     };
 
-    const donutColors = ['#2563eb', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#6366f1'];
+    const donutColors = seriesColors(salesByGroup.length);
     const donutData = {
         labels: salesByGroup.map(g => g.group_name),
         datasets: [{
@@ -85,7 +86,7 @@ export default function AdminDashboard() {
         labels: sixMonthsTrend ? sixMonthsTrend.map(t => t.month_label) : [],
         datasets: [{
             data: sixMonthsTrend ? sixMonthsTrend.map(t => t.total_sales) : [],
-            backgroundColor: sixMonthsTrend ? sixMonthsTrend.map((_, i) => i === sixMonthsTrend.length - 1 ? '#2563eb' : '#e2e8f0') : [],
+            backgroundColor: sixMonthsTrend ? sixMonthsTrend.map((_, i) => i === sixMonthsTrend.length - 1 ? SERIES[0] : '#e5e4dd') : [],
             barPercentage: 0.8,
             categoryPercentage: 0.9,
             borderRadius: 8,
@@ -93,10 +94,29 @@ export default function AdminDashboard() {
         }]
     };
 
+    // Margin actually implied by the figures on screen, rather than an asserted label.
+    const gpMargin = todayStats.total_sales > 0
+        ? (todayStats.gross_profit / todayStats.total_sales) * 100
+        : 0;
+
+    // One neutral treatment for all four icons. Four different pastel tints made
+    // colour decorative; here it is reserved for the data and the deltas.
+    const iconStyle = {
+        background: 'var(--bg)',
+        color: 'var(--text-secondary)',
+        width: 32,
+        height: 32,
+        borderRadius: 8,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0,
+    };
+
     return (
         <div style={{ background: '#F6F8FB', minHeight: '100vh' }}>
-            <div className="page-header" style={{ marginBottom: 32 }}>
-                <h1 className="gradient-text" style={{ fontSize: '1.8rem', fontWeight: 800 }}>Sales Performance Dashboard</h1>
+            <div className="page-header" style={{ marginBottom: 28 }}>
+                <h1 className="gradient-text" style={{ fontSize: '1.5rem' }}>Sales Performance Dashboard</h1>
                 <p>Real-time insights and performance analytics</p>
             </div>
 
@@ -105,52 +125,58 @@ export default function AdminDashboard() {
                 <div className="kpi-card">
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                         <div className="kpi-label">Total Revenue</div>
-                        <div className="stat-icon" style={{ background: '#eff6ff', color: '#2563eb', width: 40, height: 40, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <DollarSign size={20} />
+                        <div className="stat-icon" style={iconStyle}>
+                            <DollarSign size={16} />
                         </div>
                     </div>
                     <div className="kpi-value">{formatCurrency(todayStats.total_sales).replace('Rp', '')}</div>
                     <div className={`kpi-trend ${salesGrowth >= 0 ? 'up' : 'down'}`}>
-                        {salesGrowth >= 0 ? '↗' : '↘'} {Math.abs(salesGrowth).toFixed(1)}% vs Last Month
+                        {salesGrowth >= 0 ? '↗' : '↘'} {Math.abs(salesGrowth).toFixed(1)}% vs bulan lalu
                     </div>
                 </div>
 
                 <div className="kpi-card">
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                         <div className="kpi-label">Transactions</div>
-                        <div className="stat-icon" style={{ background: '#f0fdf4', color: '#16a34a', width: 40, height: 40, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <ShoppingCart size={20} />
+                        <div className="stat-icon" style={iconStyle}>
+                            <ShoppingCart size={16} />
                         </div>
                     </div>
                     <div className="kpi-value">{formatNumber(todayStats.transactions)}</div>
-                    <div className="kpi-trend up">
-                        Active Now
+                    <div className="kpi-trend">
+                        {todayStats.transactions > 0
+                            ? `${formatCurrency(todayStats.total_sales / todayStats.transactions).replace('Rp', 'Rp ')} rata-rata/faktur`
+                            : 'Belum ada transaksi'}
                     </div>
                 </div>
 
                 <div className="kpi-card">
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                         <div className="kpi-label">Gross Profit</div>
-                        <div className="stat-icon" style={{ background: '#fae8ff', color: '#7c3aed', width: 40, height: 40, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <TrendingUp size={20} />
+                        <div className="stat-icon" style={iconStyle}>
+                            <TrendingUp size={16} />
                         </div>
                     </div>
                     <div className="kpi-value">{formatCurrency(todayStats.gross_profit).replace('Rp', '')}</div>
-                    <div className="kpi-trend up" style={{ color: '#7c3aed', background: '#f3e8ff' }}>
-                        Healthy Margin
+                    {/* Was a hardcoded "Healthy Margin" chip that stayed green no matter
+                        what the margin actually was. Now the real ratio. */}
+                    <div className="kpi-trend">
+                        margin {gpMargin.toFixed(1)}% dari net sales
                     </div>
                 </div>
 
                 <div className="kpi-card">
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                         <div className="kpi-label">Average GP%</div>
-                        <div className="stat-icon" style={{ background: '#fff7ed', color: '#ea580c', width: 40, height: 40, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <Percent size={20} />
+                        <div className="stat-icon" style={iconStyle}>
+                            <Percent size={16} />
                         </div>
                     </div>
                     <div className="kpi-value">{formatPercent(todayStats.avg_gp)}</div>
-                    <div className="kpi-trend up">
-                        On Target
+                    {/* Was a hardcoded "On Target". There is no target in the data,
+                        so state the basis instead of implying a verdict. */}
+                    <div className="kpi-trend">
+                        rata-rata per faktur
                     </div>
                 </div>
             </div>
@@ -303,7 +329,7 @@ export default function AdminDashboard() {
                                         label: 'Net Sales',
                                         data: sixMonthsTrend.map(t => t.total_sales),
                                         backgroundColor: sixMonthsTrend.map((_, i) =>
-                                            i === sixMonthsTrend.length - 1 ? '#2563eb' : '#cbd5e1'
+                                            i === sixMonthsTrend.length - 1 ? SERIES[0] : '#e5e4dd'
                                         ),
                                         borderRadius: 6,
                                         borderSkipped: false,
@@ -345,7 +371,7 @@ export default function AdminDashboard() {
                                                     size: 11,
                                                     weight: ctx.index === sixMonthsTrend.length - 1 ? '700' : '500'
                                                 }),
-                                                color: (ctx) => ctx.index === sixMonthsTrend.length - 1 ? '#2563eb' : '#94a3b8',
+                                                color: (ctx) => ctx.index === sixMonthsTrend.length - 1 ? SERIES[0] : '#898781',
                                             },
                                             border: { display: false }
                                         }

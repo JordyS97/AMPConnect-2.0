@@ -16,13 +16,25 @@ export default function Parts() {
     const [totalPages, setTotalPages] = useState(1);
     const { addToast } = useToast();
 
-    useEffect(() => { fetchGroups(); }, []);
+    const [stockUpdatedAt, setStockUpdatedAt] = useState(null);
+
+    useEffect(() => { fetchGroups(); fetchStockFreshness(); }, []);
     useEffect(() => { fetchParts(); }, [page, sort, groupMaterial, groupPart]);
 
     const fetchGroups = async () => {
         try {
             const res = await api.get('/parts/groups');
             setGroups(res.data.data);
+        } catch (err) { /* ignore */ }
+    };
+
+    // Stock is not live — it is replaced wholesale each time the admin uploads a
+    // stock file. Showing the timestamp stops customers reading a stale catalogue
+    // as real-time availability.
+    const fetchStockFreshness = async () => {
+        try {
+            const res = await api.get('/parts/stats');
+            setStockUpdatedAt(res.data.data.last_updated || null);
         } catch (err) { /* ignore */ }
     };
 
@@ -50,7 +62,20 @@ export default function Parts() {
         <div>
             <div className="page-header">
                 <h1>Stok Part</h1>
-                <p>Cari dan lihat ketersediaan part motor</p>
+                <p>
+                    Cari dan lihat ketersediaan part motor
+                    {stockUpdatedAt && (
+                        <>
+                            {' · '}
+                            <span style={{ color: 'var(--text-secondary)', fontVariantNumeric: 'tabular-nums' }}>
+                                stok per {new Date(stockUpdatedAt).toLocaleString('id-ID', {
+                                    day: 'numeric', month: 'short', year: 'numeric',
+                                    hour: '2-digit', minute: '2-digit'
+                                })}
+                            </span>
+                        </>
+                    )}
+                </p>
             </div>
 
             {/* Filters */}

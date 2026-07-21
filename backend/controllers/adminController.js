@@ -772,15 +772,20 @@ const uploadStock = async (req, res, next) => {
         let failedCount = 0;
         const errors = [];
 
-        // Wipe all existing stock — new upload fully replaces old data
-        await client.query('DELETE FROM parts');
-
         const { normalizeStockRow } = require('../utils/excelParser');
+
+        // Stock and sales arrive as separate files, so a stock upload fully replaces
+        // the catalogue: whatever is not in this file is no longer in stock. Parse and
+        // validate every row FIRST — the old rows are only deleted once we know the
+        // replacement is good, so a bad file can never leave customers with an empty
+        // catalogue.
+        const rows = [];
+        const seen = new Set();
 
         for (let i = 0; i < data.length; i++) {
             try {
                 const row = normalizeStockRow(data[i]);
-                const noPart = row.NO_PART || row.PART_NUMBER || row.NOMOR_PART || '';
+                const noPart = String(row.NO_PART || row.PART_NUMBER || row.NOMOR_PART || '').trim();
                 const namaPart = row.NAMA_PART || row.PART_NAME || row.DESKRIPSI || '';
                 const groupPart = String(row.GROUP_PART || row.GROUP || '').trim() || null;
                 const groupTobpm = String(row.GROUP_TOBPM || row.TOBPM || '').trim() || null;
@@ -798,19 +803,53 @@ const uploadStock = async (req, res, next) => {
                     continue;
                 }
 
-                await client.query(
-                    `INSERT INTO parts (no_part, nama_part, group_part, group_material, group_tobpm, qty, amount, last_updated)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
-           ON CONFLICT (no_part) DO UPDATE SET
-           nama_part = $2, group_part = $3, group_material = $4, group_tobpm = $5, qty = $6, amount = $7, last_updated = NOW()`,
-                    [noPart, namaPart, groupPart, groupMaterial, groupTobpm, qty, amount]
-                );
+                // Same part twice in one file: the later row wins, as the old
+                // ON CONFLICT DO UPDATE did.
+                if (seen.has(noPart)) {
+                    const prev = rows.findIndex(r => r[0] === noPart);
+                    rows.splice(prev, 1);
+                }
+                seen.add(noPart);
 
+                rows.push([noPart, namaPart, groupPart, groupMaterial, groupTobpm, qty, amount]);
                 successCount++;
             } catch (err) {
                 failedCount++;
                 errors.push({ row: i + 2, error: err.message });
             }
+        }
+
+        // Never replace the catalogue with nothing. Without this the old code ran
+        // DELETE FROM parts and then committed anyway, so an unreadable or
+        // wrong-format file wiped every part and customers saw an empty catalogue.
+        if (successCount === 0) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({
+                success: false,
+                message: 'Tidak ada baris stok yang valid dalam file. Data stok lama tetap dipertahankan.',
+                data: { rows_processed: data.length, success_count: 0, failed_count: failedCount, errors: errors.slice(0, 50) }
+            });
+        }
+
+        // The replacement is known good — swap it in.
+        await client.query('DELETE FROM parts');
+
+        // Batch the inserts. One round-trip per row made a few thousand parts
+        // crawl; 500 rows per statement keeps the parameter count well under
+        // Postgres' 65535 bind limit (7 columns × 500 = 3500).
+        const CHUNK = 500;
+        for (let i = 0; i < rows.length; i += CHUNK) {
+            const chunk = rows.slice(i, i + CHUNK);
+            const values = chunk.map((_, r) => {
+                const b = r * 7;
+                return `($${b + 1}, $${b + 2}, $${b + 3}, $${b + 4}, $${b + 5}, $${b + 6}, $${b + 7}, NOW())`;
+            }).join(', ');
+
+            await client.query(
+                `INSERT INTO parts (no_part, nama_part, group_part, group_material, group_tobpm, qty, amount, last_updated)
+                 VALUES ${values}`,
+                chunk.flat()
+            );
         }
 
         await client.query(
@@ -820,14 +859,14 @@ const uploadStock = async (req, res, next) => {
 
         await client.query(
             `INSERT INTO activity_logs (user_type, user_id, user_name, action, description, ip_address) VALUES ($1, $2, $3, $4, $5, $6)`,
-            ['admin', req.user.id, req.user.username, 'Upload Stock', `Upload data stok: ${successCount} berhasil, ${failedCount} gagal`, req.ip]
+            ['admin', req.user.id, req.user.username, 'Upload Stock', `Stok diganti penuh: ${successCount} part aktif, ${failedCount} baris gagal`, req.ip]
         );
 
         await client.query('COMMIT');
 
         res.json({
             success: true,
-            message: 'Data stok berhasil diproses.',
+            message: `Data stok berhasil diperbarui. ${successCount} part kini aktif.`,
             data: { rows_processed: data.length, success_count: successCount, failed_count: failedCount, errors }
         });
     } catch (error) {

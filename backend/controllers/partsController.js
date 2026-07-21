@@ -99,7 +99,11 @@ const getInventoryStats = async (req, res, next) => {
                 COUNT(*) as total_parts,
                 COUNT(CASE WHEN qty > 0 AND qty <= 20 THEN 1 END) as low_stock,
                 COUNT(CASE WHEN qty = 0 THEN 1 END) as out_of_stock,
-                COALESCE(SUM(amount), 0) as total_value
+                COALESCE(SUM(amount), 0) as total_value,
+                -- Stock is replaced wholesale on every upload, so every row shares
+                -- the same timestamp. Surfacing it lets the UI tell customers how
+                -- fresh the catalogue is instead of implying it is live.
+                MAX(last_updated) as last_updated
             FROM parts
         `);
 
@@ -109,7 +113,8 @@ const getInventoryStats = async (req, res, next) => {
                 total_parts: parseInt(stats.rows[0].total_parts),
                 low_stock: parseInt(stats.rows[0].low_stock),
                 out_of_stock: parseInt(stats.rows[0].out_of_stock),
-                total_value: parseFloat(stats.rows[0].total_value)
+                total_value: parseFloat(stats.rows[0].total_value),
+                last_updated: stats.rows[0].last_updated
             }
         });
     } catch (error) {
