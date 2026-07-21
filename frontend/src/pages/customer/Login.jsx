@@ -19,13 +19,11 @@ export default function CustomerLogin() {
         if (!email || !password) { addToast('Silakan isi semua field', 'warning'); return; }
         setLoading(true);
         try {
-            console.log('API Base URL:', import.meta.env.VITE_API_URL || '/api (default)');
             const res = await api.post('/auth/login', { email, password });
             login(res.data.token, res.data.user);
             addToast('Login berhasil! Selamat datang.', 'success');
             navigate('/customer/dashboard');
         } catch (err) {
-            console.error('Login error:', err);
             const data = err.response?.data;
             if (data?.needsVerification) {
                 navigate('/customer/verify-otp', { state: { email: data.email } });
@@ -38,118 +36,85 @@ export default function CustomerLogin() {
     };
 
     return (
-        <div style={{
-            minHeight: '100vh',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: 'radial-gradient(125% 125% at 50% 10%, #0f172a 40%, #020617 100%)',
-            fontFamily: "'Inter', sans-serif"
-        }}>
-            <div style={{
-                background: 'rgba(30, 41, 59, 0.4)',
-                backdropFilter: 'blur(20px)',
-                WebkitBackdropFilter: 'blur(20px)',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
-                borderRadius: '24px',
-                padding: '40px',
-                width: '100%',
-                maxWidth: '420px',
-                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
-            }}>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '32px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '24px' }}>
-                        <img src="/logo_white.png" alt="AMPConnect" style={{ width: '180px', height: 'auto', maxWidth: '100%', filter: 'brightness(0) invert(1)' }} />
-                    </div>
-                    <p style={{ color: '#94a3b8', fontSize: '14px', letterSpacing: '0.5px', textTransform: 'uppercase', fontWeight: '500' }}>Customer Portal</p>
+        <div className="auth-split">
+            {/* The employee gestures rightward, across the split, toward the form. */}
+            <div className="auth-visual">
+                <picture>
+                    <source media="(max-width: 900px)" srcSet="/login-shop-sm.webp" />
+                    <img
+                        src="/login-shop.webp"
+                        alt="Pegawai toko sparepart motor mempersilakan masuk, dengan etalase kaca berisi ban, oli, aki, dan kampas rem"
+                        width="2400"
+                        height="1344"
+                        // React 18 does not map the camelCase prop; lowercase is
+                        // passed through to the DOM as-is.
+                        fetchpriority="high"
+                    />
+                </picture>
+                <div className="auth-caption">
+                    <h2>Sparepart lengkap, stok selalu terbarui.</h2>
+                    <p>Masuk untuk melihat ketersediaan part, riwayat pembelian, dan poin loyalti Anda.</p>
                 </div>
+            </div>
 
-                <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                    <div>
-                        <label style={{ display: 'block', color: '#cbd5e1', fontSize: '14px', marginBottom: '8px', fontWeight: '500' }}>Email</label>
-                        <div style={{ position: 'relative' }}>
-                            <Mail size={18} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
-                            <input
-                                type="email"
-                                placeholder="email@contoh.com"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                style={{
-                                    width: '100%',
-                                    padding: '12px 14px 12px 42px',
-                                    background: 'rgba(15, 23, 42, 0.6)',
-                                    border: '1px solid rgba(51, 65, 85, 0.8)',
-                                    borderRadius: '12px',
-                                    color: '#fff',
-                                    fontSize: '14px',
-                                    outline: 'none',
-                                    transition: 'all 0.2s',
-                                }}
-                                onFocus={(e) => e.target.style.borderColor = '#3b82f6'}
-                                onBlur={(e) => e.target.style.borderColor = 'rgba(51, 65, 85, 0.8)'}
-                            />
-                        </div>
+            <div className="auth-panel">
+                <div className="auth-form">
+                    <div className="auth-brand">
+                        <img src="/logo.png" alt="AMPConnect" />
+                        <h1>Selamat datang kembali</h1>
+                        <p>Masuk ke akun pelanggan Anda</p>
                     </div>
 
-                    <div>
-                        <label style={{ display: 'block', color: '#cbd5e1', fontSize: '14px', marginBottom: '8px', fontWeight: '500' }}>Password</label>
-                        <div style={{ position: 'relative' }}>
-                            <Lock size={18} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
-                            <input
-                                type={showPassword ? 'text' : 'password'}
-                                placeholder="••••••••"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                style={{
-                                    width: '100%',
-                                    padding: '12px 42px 12px 42px',
-                                    background: 'rgba(15, 23, 42, 0.6)',
-                                    border: '1px solid rgba(51, 65, 85, 0.8)',
-                                    borderRadius: '12px',
-                                    color: '#fff',
-                                    fontSize: '14px',
-                                    outline: 'none',
-                                    transition: 'all 0.2s',
-                                }}
-                                onFocus={(e) => e.target.style.borderColor = '#3b82f6'}
-                                onBlur={(e) => e.target.style.borderColor = 'rgba(51, 65, 85, 0.8)'}
-                            />
-                            <button
-                                type="button"
-                                onClick={() => setShowPassword(!showPassword)}
-                                style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}
-                            >
-                                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                            </button>
+                    <form onSubmit={handleSubmit}>
+                        <div className="form-group">
+                            <label htmlFor="email">Email</label>
+                            <div className="auth-input-wrap">
+                                <Mail size={17} className="auth-icon" />
+                                <input
+                                    id="email"
+                                    type="email"
+                                    className="form-control"
+                                    placeholder="email@contoh.com"
+                                    autoComplete="email"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                />
+                            </div>
                         </div>
+
+                        <div className="form-group">
+                            <label htmlFor="password">Password</label>
+                            <div className="auth-input-wrap">
+                                <Lock size={17} className="auth-icon" />
+                                <input
+                                    id="password"
+                                    type={showPassword ? 'text' : 'password'}
+                                    className="form-control"
+                                    placeholder="••••••••"
+                                    autoComplete="current-password"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    style={{ paddingRight: 44 }}
+                                />
+                                <button
+                                    type="button"
+                                    className="auth-toggle"
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    aria-label={showPassword ? 'Sembunyikan password' : 'Tampilkan password'}
+                                >
+                                    {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                                </button>
+                            </div>
+                        </div>
+
+                        <button type="submit" className="btn btn-primary auth-submit" disabled={loading}>
+                            {loading ? 'Memproses...' : 'Masuk'}
+                        </button>
+                    </form>
+
+                    <div className="auth-footer">
+                        Belum punya akun? <Link to="/customer/register">Daftar di sini</Link>
                     </div>
-
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        style={{
-                            marginTop: '8px',
-                            background: 'linear-gradient(135deg, #3b82f6 0%, #4f46e5 100%)',
-                            color: 'white',
-                            fontWeight: '600',
-                            padding: '14px',
-                            borderRadius: '12px',
-                            border: 'none',
-                            cursor: loading ? 'not-allowed' : 'pointer',
-                            fontSize: '15px',
-                            boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)',
-                            transition: 'opacity 0.2s',
-                            opacity: loading ? 0.7 : 1
-                        }}
-                    >
-                        {loading ? 'Memproses...' : 'Masuk'}
-                    </button>
-                </form>
-
-                <div style={{ marginTop: '32px', textAlign: 'center', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '20px' }}>
-                    <p style={{ color: '#94a3b8', fontSize: '14px' }}>
-                        Belum punya akun? <Link to="/customer/register" style={{ color: '#60a5fa', textDecoration: 'none', fontWeight: '500' }}>Daftar di sini</Link>
-                    </p>
                 </div>
             </div>
         </div>
