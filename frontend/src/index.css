@@ -14,6 +14,12 @@
   --danger: #dc2626;
   --danger-light: #ef4444;
 
+  /* Darker steps, for status text on a light surface where the base tone is
+     too pale to read (--warning in particular sits near 1.8:1). */
+  --success-dark: #15803d;
+  --warning-dark: #a16207;
+  --danger-dark: #b91c1c;
+
   /* Tier Colors */
   --tier-silver: #C0C0C0;
   --tier-gold: #FFD700;
@@ -1530,4 +1536,41 @@ tbody tr:last-child td {
   .rewards-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* Customer Dashboard */
+.dashboard-page {
+  padding-bottom: 32px;
+}
+
+.section-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.quick-action-card {
+  cursor: pointer;
+  display: block;
+}
+
+.quick-action-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+}
+
+.btn-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--primary);
+  text-decoration: none;
+  transition: var(--transition);
+}
+
+.btn-link:hover {
+  color: var(--primary-dark);
+  text-decoration: underline;
 }

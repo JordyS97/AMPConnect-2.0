@@ -170,10 +170,12 @@ const getInventoryAnalytics = async (req, res, next) => {
 
         // 4. Category Analysis (Revenue)
         const byGroupPart = await pool.query(`
-            SELECT COALESCE(p.group_tobpm, ti.group_material, 'Lainnya') as category, SUM(ti.subtotal) as revenue
+            -- group_material first: it is on every line, whereas parts.group_tobpm
+            -- only covers items present in the parts master. Preferring group_tobpm
+            -- split the same category across two labels depending on master coverage.
+            SELECT COALESCE(NULLIF(ti.group_material, ''), 'Lainnya') as category, SUM(ti.subtotal) as revenue
             FROM transaction_items ti
             JOIN transactions t ON ti.transaction_id = t.id
-            LEFT JOIN parts p ON ti.no_part = p.no_part
             WHERE 1=1 ${dateFilter}
             GROUP BY category ORDER BY revenue DESC`, params);
 
@@ -477,16 +479,40 @@ const getStock = async (req, res, next) => {
 const adjustStock = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const { qty } = req.body;
+        // The UI sends a delta (it previews `current + quantity`) plus a reason.
+        // This used to read `qty` and overwrite the stock with it, so an adjustment
+        // of +5 would have set the part's stock to 5. `qty` stays supported as an
+        // explicit absolute set.
+        const { quantity, reason, qty } = req.body;
 
-        await pool.query('UPDATE parts SET qty = $1, last_updated = NOW() WHERE id = $2', [qty, id]);
+        const isAbsolute = qty !== undefined;
+        const delta = parseInt(quantity, 10);
+
+        if (!isAbsolute && !Number.isFinite(delta)) {
+            return res.status(400).json({ success: false, message: 'Jumlah penyesuaian tidak valid.' });
+        }
+
+        const { rows } = await pool.query(
+            isAbsolute
+                ? 'UPDATE parts SET qty = $1, last_updated = NOW() WHERE id = $2 RETURNING no_part, qty'
+                : 'UPDATE parts SET qty = qty + $1, last_updated = NOW() WHERE id = $2 RETURNING no_part, qty',
+            [isAbsolute ? parseInt(qty, 10) : delta, id]
+        );
+
+        if (rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'Part tidak ditemukan.' });
+        }
+
+        const part = rows[0];
+        const change = isAbsolute ? `di-set ke ${part.qty}` : `${delta >= 0 ? '+' : ''}${delta} menjadi ${part.qty}`;
 
         await pool.query(
             `INSERT INTO activity_logs (user_type, user_id, user_name, action, description, ip_address) VALUES ($1, $2, $3, $4, $5, $6)`,
-            ['admin', req.user.id, req.user.username, 'Stock Adjust', `Stok part ID ${id} diubah ke ${qty}`, req.ip]
+            ['admin', req.user.id, req.user.username, 'Stock Adjust',
+                `Stok ${part.no_part} ${change}${reason ? ` — ${reason}` : ''}`, req.ip]
         );
 
-        res.json({ success: true, message: 'Stok berhasil diperbarui.' });
+        res.json({ success: true, message: 'Stok berhasil diperbarui.', data: { qty: part.qty } });
     } catch (error) {
         next(error);
     }
@@ -1298,11 +1324,9 @@ const getPriceAnalytics = async (req, res, next) => {
 
         const trend = await pool.query(trendQuery, trendParams);
 
-        // 3. Top Discounted Parts (by Amount)
-        // Ensure column exists first (Lazy Migration)
-        try {
-            await pool.query('ALTER TABLE transaction_items ADD COLUMN IF NOT EXISTS diskon DECIMAL(15,2) DEFAULT 0');
-        } catch (e) { /* ignore if exists/error */ }
+        // transaction_items.diskon is part of db/schema.sql. The lazy `ALTER TABLE
+        // ... ADD COLUMN IF NOT EXISTS` that used to run here fired DDL on every
+        // single request to this endpoint; it belongs in a migration, not a read path.
 
         // 3. Discount vs Profit Scatter Data by Group Material
         // Maximum 50 points

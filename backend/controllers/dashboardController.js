@@ -57,11 +57,14 @@ const getOverviewMetrics = async (req, res, next) => {
         // C. Revenue at Risk (Last 12 Months activity)
         const riskQuery = `
             WITH last_tx AS (
-                SELECT customer_id, MAX(tanggal) as last_date, 
-                MAX(net_sales) as last_value 
+                -- DISTINCT ON gives the value of the LAST invoice. MAX(net_sales)
+                -- returned the customer's largest invoice ever, which systematically
+                -- overstated the amount at risk.
+                SELECT DISTINCT ON (customer_id)
+                    customer_id, tanggal as last_date, net_sales as last_value
                 FROM transactions
                 WHERE tanggal >= NOW() - INTERVAL '12 months'
-                GROUP BY customer_id
+                ORDER BY customer_id, tanggal DESC, id DESC
             )
             SELECT 
                 SUM(CASE WHEN last_date < NOW() - INTERVAL '90 days' THEN last_value ELSE 0 END) as revenue_at_risk,
@@ -97,18 +100,16 @@ const getBuyingCycleAnalysis = async (req, res, next) => {
 
         // Optimization: Use "Most Recent" customers (Index Scan) instead of "Most Frequent" (Full Table Scan)
         const query = `
-            WITH recent_customers AS (
-                SELECT DISTINCT customer_id
-                FROM transactions
-                WHERE tanggal >= NOW() - INTERVAL '12 months'
-            ),
-            target_customers AS (
-                -- Better approach for strictly "Recent":
+            WITH last_seen AS (
                 SELECT DISTINCT ON (customer_id) customer_id, tanggal
                 FROM transactions
                 WHERE tanggal >= NOW() - INTERVAL '12 months'
                 ORDER BY customer_id, tanggal DESC
-                LIMIT 500
+            ),
+            target_customers AS (
+                -- The 500 most recently active customers. Putting LIMIT on the
+                -- DISTINCT ON above picked the 500 lowest customer ids instead.
+                SELECT customer_id FROM last_seen ORDER BY tanggal DESC LIMIT 500
             ),
             user_cycles AS (
                  SELECT t.customer_id, c.name, MAX(t.tanggal) as last_purchase,
@@ -179,13 +180,15 @@ const getSeasonalityAnalysis = async (req, res, next) => {
                 FROM transactions 
                 WHERE tanggal >= NOW() - INTERVAL '12 months'
             )
-            SELECT 
+            SELECT
                 EXTRACT(MONTH FROM t.tanggal) as month,
-                COALESCE(NULLIF(p.group_tobpm, ''), 'Other') as category,
+                -- Categorise from the line itself. ti.group_material is populated on
+                -- every row; parts.group_tobpm only covers items present in the parts
+                -- master (~48%), which silently dumped the rest into 'Other'.
+                COALESCE(NULLIF(ti.group_material, ''), 'Other') as category,
                 SUM(ti.qty) as total_qty
             FROM transaction_items ti
             JOIN limited_tx t ON ti.transaction_id = t.id -- Join with reduced dataset
-            LEFT JOIN parts p ON ti.no_part = p.no_part
             GROUP BY 1, 2
             ORDER BY 1 ASC
         `;
@@ -246,17 +249,22 @@ const getCustomerDueTracking = async (req, res, next) => {
         }
 
         const query = `
-            WITH target_customers AS (
-                -- Optimization: Use "Most Recent" customers (Index Scan)
+            WITH last_seen AS (
                 SELECT DISTINCT ON (customer_id) customer_id, tanggal
                 FROM transactions
                 WHERE tanggal >= NOW() - INTERVAL '1 year'
                 ORDER BY customer_id, tanggal DESC
-                LIMIT 500
-            ) 
-            SELECT t.customer_id, COALESCE(c.name, t.no_customer) as name, 
+            ),
+            target_customers AS (
+                -- Genuinely the 500 most recent customers. The LIMIT used to sit on
+                -- the DISTINCT ON, whose ORDER BY starts with customer_id, so it
+                -- returned the 500 lowest ids instead.
+                SELECT customer_id FROM last_seen ORDER BY tanggal DESC LIMIT 500
+            )
+            SELECT t.customer_id, COALESCE(c.name, t.no_customer) as name,
                    MAX(t.tanggal) as last_purchase,
-                   MAX(t.net_sales) as last_value,
+                   -- Value of the most recent invoice, not the largest one.
+                   (ARRAY_AGG(t.net_sales ORDER BY t.tanggal DESC))[1] as last_value,
                    AVG(t.tanggal - prev_date) as avg_cycle
             FROM (
                 SELECT customer_id, no_customer, net_sales, tanggal, LAG(tanggal) OVER (PARTITION BY customer_id ORDER BY tanggal) as prev_date
@@ -294,7 +302,9 @@ const getCustomerDueTracking = async (req, res, next) => {
 
             if (daysUntilDue >= 0 && daysUntilDue <= 7) {
                 dueThisWeek.push(item);
-            } else if (daysUntilDue < -7) {
+            } else if (daysUntilDue < 0) {
+                // Was `< -7`, which silently dropped customers 1–7 days late from
+                // both buckets — exactly the window where a follow-up still works.
                 item.overdue_days = Math.abs(daysUntilDue);
                 item.risk_amount = item.last_value;
                 overdue.push(item);
@@ -321,14 +331,15 @@ const getProductCycles = async (req, res, next) => {
     try {
         const query = `
             WITH cat_dates AS (
-                SELECT 
-                    t.customer_id, 
-                    p.group_tobpm as category,
+                SELECT
+                    t.customer_id,
+                    ti.group_material as category,
                     t.tanggal
                 FROM transaction_items ti
                 JOIN transactions t ON ti.transaction_id = t.id
-                JOIN parts p ON ti.no_part = p.no_part
-                WHERE p.group_tobpm IS NOT NULL
+                -- Was an inner JOIN on parts, which dropped every item missing from the
+                -- parts master (~52% of lines) out of the cycle table entirely.
+                WHERE NULLIF(ti.group_material, '') IS NOT NULL
                 AND t.tanggal >= NOW() - INTERVAL '2 years' -- Optimization
             ),
             intervals AS (
@@ -378,16 +389,17 @@ const getPredictiveAnalytics = async (req, res, next) => {
         const forecastRes = await pool.query(forecastQuery);
 
         // B. Stock Recommendations (Low Stock < 10 units)
-        // Assuming 'stok_awal' is current stock (or close to it)
+        // Column is parts.qty — 'stok_awal' does not exist in the schema and made
+        // this endpoint throw 42703 on every call.
         const stockQuery = `
-            SELECT 
+            SELECT
                 no_part as part,
-                stok_awal as current,
+                qty as current,
                 10 as needed, -- Threshold
-                CASE WHEN stok_awal < 5 THEN 'Urgent' ELSE 'Order' END as status
+                CASE WHEN qty < 5 THEN 'Urgent' ELSE 'Order' END as status
             FROM parts
-            WHERE stok_awal < 10
-            ORDER BY stok_awal ASC
+            WHERE qty < 10
+            ORDER BY qty ASC
             LIMIT 5
         `;
         const stockRes = await pool.query(stockQuery);

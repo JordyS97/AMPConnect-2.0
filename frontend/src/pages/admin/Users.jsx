@@ -53,7 +53,7 @@ export default function UsersPage() {
     const fetchLogs = async () => {
         setLoading(true);
         try {
-            const res = await api.get('/admin/activity-logs', { params: { page, limit: 30 } });
+            const res = await api.get('/admin/users/logs', { params: { page, limit: 30 } });
             setLogs(res.data.data.logs);
             setTotalPages(res.data.data.totalPages);
         } catch (err) { addToast('Gagal memuat log', 'error'); }
@@ -429,7 +429,7 @@ export default function UsersPage() {
                             )}
                             {modal.type === 'redeemPoints' && (
                                 <>
-                                    <div style={{ marginBottom: 16, padding: 12, backgroundColor: 'var(--bg-light)', borderRadius: 8 }}>
+                                    <div style={{ marginBottom: 16, padding: 12, backgroundColor: 'var(--bg)', borderRadius: 8 }}>
                                         <p style={{ margin: 0 }}><strong>Customer:</strong> {modal.data.name} ({modal.data.no_customer})</p>
                                         <p style={{ margin: '4px 0 0 0', color: 'var(--primary)' }}><strong>Poin Tersedia:</strong> {formatNumber(modal.data.total_points - (modal.data.redeemed_points || 0))}</p>
                                     </div>

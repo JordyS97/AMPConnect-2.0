@@ -108,7 +108,7 @@ export default function Stock() {
         if (!adjustQty || !adjustReason) { addToast('Isi jumlah dan alasan', 'warning'); return; }
 
         try {
-            await api.post(`/admin/stock/${adjustModal.id}/adjust`, { quantity: parseInt(adjustQty), reason: adjustReason });
+            await api.put(`/admin/stock/${adjustModal.id}`, { quantity: parseInt(adjustQty), reason: adjustReason });
             addToast('Stok berhasil disesuaikan', 'success');
             setAdjustModal(null);
             setAdjustQty('');

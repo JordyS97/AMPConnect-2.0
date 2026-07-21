@@ -262,9 +262,8 @@ const getTransactions = async (req, res, next) => {
 
         // Joins if filtering by category
         if (category && category !== 'Semua') {
-            query += ` JOIN transaction_items ti ON t.id = ti.transaction_id 
-                       JOIN parts p ON ti.no_part = p.no_part`;
-            whereClauses.push(`p.group_tobpm = $${paramIndex}`);
+            query += ` JOIN transaction_items ti ON t.id = ti.transaction_id`;
+            whereClauses.push(`ti.group_material = $${paramIndex}`);
             params.push(category);
             paramIndex++;
         }
@@ -289,7 +288,7 @@ const getTransactions = async (req, res, next) => {
 
         // Count query
         const countQuery = `SELECT COUNT(DISTINCT t.id) FROM transactions t 
-                            ${category && category !== 'Semua' ? 'JOIN transaction_items ti ON t.id = ti.transaction_id JOIN parts p ON ti.no_part = p.no_part' : ''}
+                            ${category && category !== 'Semua' ? 'JOIN transaction_items ti ON t.id = ti.transaction_id' : ''}
                             WHERE ${whereClauses.join(' AND ')}`;
 
         const countResult = await pool.query(countQuery, params);
@@ -366,8 +365,8 @@ const getTrends = async (req, res, next) => {
         const catParamIdx = pIdx;
 
         if (category && category !== 'Semua') {
-            catJoin = 'JOIN transaction_items ti2 ON t.id = ti2.transaction_id JOIN parts p2 ON ti2.no_part = p2.no_part';
-            catFilterItem = ` AND p2.group_tobpm = $${catParamIdx}`;
+            catJoin = 'JOIN transaction_items ti2 ON t.id = ti2.transaction_id';
+            catFilterItem = ` AND ti2.group_material = $${catParamIdx}`;
             params.push(category);
             pIdx++;
         }
@@ -389,10 +388,9 @@ const getTrends = async (req, res, next) => {
         const healthCheck = await pool.query(`
             SELECT 
                 COUNT(DISTINCT TO_CHAR(tanggal, 'YYYY-MM')) as active_months,
-                COUNT(DISTINCT p.group_tobpm) as unique_cats
+                COUNT(DISTINCT NULLIF(ti.group_material, '')) as unique_cats
             FROM transactions t
             JOIN transaction_items ti ON t.id = ti.transaction_id
-            JOIN parts p ON ti.no_part = p.no_part
             WHERE t.customer_id = $1 AND t.tanggal >= NOW() - INTERVAL '12 months'
         `, [customerId]);
 
@@ -449,20 +447,20 @@ const getTrends = async (req, res, next) => {
         const topPartsQuery = `SELECT ti.nama_part, ti.no_part, SUM(ti.qty) as total_qty, SUM(ti.subtotal) as total_value
        FROM transaction_items ti
        JOIN transactions t ON ti.transaction_id = t.id
-       ${category && category !== 'Semua' ? 'JOIN parts p ON ti.no_part = p.no_part' : ''}
-       WHERE t.customer_id = $1 ${dateFilter} ${category && category !== 'Semua' ? 'AND p.group_tobpm = $' + catParamIdx : ''}
+       WHERE t.customer_id = $1 ${dateFilter} ${category && category !== 'Semua' ? 'AND ti.group_material = $' + catParamIdx : ''}
        GROUP BY ti.nama_part, ti.no_part ORDER BY total_value DESC LIMIT 10`;
 
         const topParts = await pool.query(topPartsQuery, params);
 
         // 7. Spending by Category
         const spendingByGroup = await pool.query(
-            `SELECT COALESCE(p.group_tobpm, 'Lainnya') as group_name, SUM(ti.subtotal) as total
+            // Categorise from ti.group_material (populated on every line) rather than
+            // parts.group_tobpm, which only covers items in the parts master.
+            `SELECT COALESCE(NULLIF(ti.group_material, ''), 'Lainnya') as group_name, SUM(ti.subtotal) as total
        FROM transaction_items ti
        JOIN transactions t ON ti.transaction_id = t.id
-       LEFT JOIN parts p ON ti.no_part = p.no_part
        WHERE t.customer_id = $1 ${dateFilter}
-       GROUP BY p.group_tobpm ORDER BY total DESC`,
+       GROUP BY 1 ORDER BY total DESC`,
             params
         );
 
@@ -619,12 +617,11 @@ const getYearEndReport = async (req, res, next) => {
         `, [customerId, startDate, endDate]);
 
         const topCategory = await pool.query(`
-            SELECT p.group_tobpm as category, SUM(ti.subtotal) as total
+            SELECT NULLIF(ti.group_material, '') as category, SUM(ti.subtotal) as total
             FROM transaction_items ti
             JOIN transactions t ON ti.transaction_id = t.id
-            JOIN parts p ON ti.no_part = p.no_part
             WHERE t.customer_id = $1 AND t.tanggal >= $2 AND t.tanggal <= $3
-            GROUP BY p.group_tobpm ORDER BY total DESC LIMIT 1
+            GROUP BY 1 ORDER BY total DESC LIMIT 1
         `, [customerId, startDate, endDate]);
 
         res.json({
@@ -693,9 +690,28 @@ const getRedemptionHistory = async (req, res, next) => {
     }
 };
 
+// Categories this customer has actually bought, for the filter dropdowns.
+// Previously the options were hardcoded in the UI ('OIL', 'BATTERY', 'SPARK PLUG')
+// and matched no real group_material value, so those filters returned nothing.
+const getCategories = async (req, res, next) => {
+    try {
+        const { rows } = await pool.query(
+            `SELECT DISTINCT NULLIF(ti.group_material, '') as category
+             FROM transaction_items ti
+             JOIN transactions t ON ti.transaction_id = t.id
+             WHERE t.customer_id = $1 AND NULLIF(ti.group_material, '') IS NOT NULL
+             ORDER BY 1`,
+            [req.user.id]
+        );
+        res.json({ success: true, data: rows.map(r => r.category) });
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     getDashboard, getProfile, updateProfile, changePassword,
     getPointsHistory, getTransactions, getTrends,
     getFavoriteParts, getComparison, getYearEndReport,
-    redeemPoints, getRedemptionHistory
+    redeemPoints, getRedemptionHistory, getCategories
 };

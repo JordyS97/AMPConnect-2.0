@@ -18,6 +18,7 @@ export default function SpendingAnalytics() {
         endDate: '',
         category: 'Semua'
     });
+    const [categories, setCategories] = useState([]);
     const { addToast } = useToast();
 
     // Color Palette for Categories
@@ -29,6 +30,14 @@ export default function SpendingAnalytics() {
     useEffect(() => {
         fetchData();
     }, [filters]);
+
+    // Categories come from the customer's own purchase history, so the dropdown
+    // can only offer values that actually match a group_material in the data.
+    useEffect(() => {
+        api.get('/customer/categories')
+            .then(res => setCategories(res.data.data || []))
+            .catch(() => setCategories([]));
+    }, []);
 
     const fetchData = async () => {
         setLoading(true);
@@ -135,11 +144,9 @@ export default function SpendingAnalytics() {
                                 style={{ border: 'none', fontSize: '0.9rem', color: '#334155', background: 'transparent', cursor: 'pointer', outline: 'none' }}
                             >
                                 <option value="Semua">Semua Kategori</option>
-                                <option value="OIL">Oli</option>
-                                <option value="TIRE">Ban</option>
-                                <option value="BATTERY">Aki</option>
-                                <option value="SPARK PLUG">Busi</option>
-                                <option value="BRAKE SHOE">Kampas Rem</option>
+                                {categories.map(c => (
+                                    <option key={c} value={c}>{c}</option>
+                                ))}
                             </select>
                         </div>
                     </div>

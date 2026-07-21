@@ -255,7 +255,7 @@ export default function AdminDashboard() {
                             <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: '#1e293b' }}>Top Performing Products</h3>
                             <p style={{ fontSize: '0.85rem', color: '#64748b' }}>Best sellers by revenue</p>
                         </div>
-                        <Link to="/admin/analytics/inventory" style={{ fontSize: '0.85rem', color: '#2563eb', fontWeight: 600, textDecoration: 'none' }}>View All</Link>
+                        <Link to="/admin/inventory-analytics" style={{ fontSize: '0.85rem', color: '#2563eb', fontWeight: 600, textDecoration: 'none' }}>View All</Link>
                     </div>
                     <div>
                         {topParts.slice(0, 5).map((part, i) => {

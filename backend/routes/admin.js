@@ -90,9 +90,6 @@ router.get('/sales-analytics', getSalesAnalytics);
 // Price & Discount Analytics
 router.get('/price-analytics', getPriceAnalytics);
 
-// Price & Discount Analytics
-router.get('/price-analytics', getPriceAnalytics);
-
 // Settings
 // QR upload — memoryStorage (image processed in controller)
 const uploadQR = multer({

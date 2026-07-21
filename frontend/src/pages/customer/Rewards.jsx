@@ -149,7 +149,7 @@ export default function Rewards() {
 
             {/* Redeem Points Section */}
             <div className="card" style={{ marginBottom: 32 }}>
-                <div className="card-header" style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: 16, marginBottom: 20 }}>
+                <div className="card-header" style={{ borderBottom: '1px solid var(--border)', paddingBottom: 16, marginBottom: 20 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         <Gift className="text-primary" />
                         <h3 style={{ margin: 0 }}>Katalog Hadiah</h3>

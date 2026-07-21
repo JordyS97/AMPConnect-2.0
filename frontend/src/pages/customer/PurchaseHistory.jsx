@@ -18,7 +18,16 @@ export default function PurchaseHistory() {
         category: 'Semua'
     });
     const [expandedRow, setExpandedRow] = useState(null);
+    const [categories, setCategories] = useState([]);
     const { addToast } = useToast();
+
+    // Categories come from the customer's own purchase history, so the dropdown
+    // can only offer values that actually match a group_material in the data.
+    useEffect(() => {
+        api.get('/customer/categories')
+            .then(res => setCategories(res.data.data || []))
+            .catch(() => setCategories([]));
+    }, []);
 
     // Fetch data
     const fetchTransactions = async () => {
@@ -127,12 +136,9 @@ export default function PurchaseHistory() {
                         <label>Kategori Part</label>
                         <select name="category" className="input" value={filters.category} onChange={handleFilterChange}>
                             <option value="Semua">Semua Kategori</option>
-                            <option value="OIL">Oil</option>
-                            <option value="TIRE">Tire</option>
-                            <option value="BATTERY">Battery</option>
-                            <option value="SPARK PLUG">Spark Plug</option>
-                            <option value="BRAKE SHOE">Brake Shoe</option>
-                            <option value="Part">Sparepart Lain</option>
+                            {categories.map(c => (
+                                <option key={c} value={c}>{c}</option>
+                            ))}
                         </select>
                     </div>
                 </div>
