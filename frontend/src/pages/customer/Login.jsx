@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/Toast';
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import api from '../../api/axios';
+import Logo from '../../components/Logo';
 
 export default function CustomerLogin() {
     const [email, setEmail] = useState('');
@@ -41,13 +42,14 @@ export default function CustomerLogin() {
             <div className="auth-visual">
                 <picture>
                     <source media="(max-width: 900px)" srcSet="/login-shop-sm.webp" />
+                    {/* fetchpriority stays lowercase: React 18 has no mapping for
+                        the camelCase form and warns, whereas an all-lowercase
+                        unknown attribute is passed straight through to the DOM. */}
                     <img
                         src="/login-shop.webp"
                         alt="Pegawai toko sparepart motor mempersilakan masuk, dengan etalase kaca berisi ban, oli, aki, dan kampas rem"
                         width="2400"
                         height="1344"
-                        // React 18 does not map the camelCase prop; lowercase is
-                        // passed through to the DOM as-is.
                         fetchpriority="high"
                     />
                 </picture>
@@ -60,7 +62,10 @@ export default function CustomerLogin() {
             <div className="auth-panel">
                 <div className="auth-form">
                     <div className="auth-brand">
-                        <img src="/logo.png" alt="AMPConnect" />
+                        {/* Was <img src="/logo.png">, which is not a logo at all —
+                            the file is a screenshot of this very login page, with
+                            "Masuk ke akun customer Anda" still cropped into it. */}
+                        <Logo size={34} subtitle="Customer Portal" />
                         <h1>Selamat datang kembali</h1>
                         <p>Masuk ke akun pelanggan Anda</p>
                     </div>

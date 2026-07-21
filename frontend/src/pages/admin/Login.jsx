@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/Toast';
 import { User, Lock, Eye, EyeOff } from 'lucide-react';
 import api from '../../api/axios';
+import Logo from '../../components/Logo';
 
 export default function AdminLogin() {
     const [username, setUsername] = useState('');
@@ -24,7 +25,6 @@ export default function AdminLogin() {
             addToast('Login berhasil!', 'success');
             navigate('/admin/dashboard');
         } catch (err) {
-            console.error('Login Error:', err);
             const status = err.response?.status;
             const msg = err.response?.data?.message || err.message || 'Login gagal';
             addToast(status === 401 ? msg : `Error: ${msg}`, 'error');
@@ -34,116 +34,79 @@ export default function AdminLogin() {
     };
 
     return (
-        <div style={{
-            minHeight: '100vh',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: 'radial-gradient(125% 125% at 50% 10%, #0f172a 40%, #020617 100%)',
-            fontFamily: "'Inter', sans-serif"
-        }}>
-            <div style={{
-                background: 'rgba(30, 41, 59, 0.4)',
-                backdropFilter: 'blur(20px)',
-                WebkitBackdropFilter: 'blur(20px)',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
-                borderRadius: '24px',
-                padding: '40px',
-                width: '100%',
-                maxWidth: '420px',
-                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
-            }}>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '32px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '24px' }}>
-                        <img src="/logo_white.png" alt="AMPConnect" style={{ width: '180px', height: 'auto', maxWidth: '100%', filter: 'brightness(0) invert(1)' }} />
-                    </div>
-                    <p style={{ color: '#94a3b8', fontSize: '14px', letterSpacing: '0.5px', textTransform: 'uppercase', fontWeight: '500' }}>Portal Administrasi</p>
+        <div className="auth-center">
+            <picture>
+                <source media="(max-width: 700px)" srcSet="/admin-showroom-sm.webp" />
+                {/* Decorative: the showroom carries no information the admin
+                    needs, so empty alt + aria-hidden keeps it out of the
+                    accessibility tree. */}
+                <img
+                    className="auth-center-bg"
+                    src="/admin-showroom.webp"
+                    alt=""
+                    aria-hidden="true"
+                    width="2400"
+                    height="1344"
+                    fetchpriority="high"
+                />
+            </picture>
+
+            <div className="auth-glass">
+                <div className="auth-glass-head">
+                    <Logo size={38} tone="light" />
+                    <div className="auth-glass-title">Portal Administrasi</div>
+                    <div className="auth-glass-sub">Masuk untuk mengelola penjualan dan stok</div>
                 </div>
 
-                <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                    <div>
-                        <label style={{ display: 'block', color: '#cbd5e1', fontSize: '14px', marginBottom: '8px', fontWeight: '500' }}>Username</label>
-                        <div style={{ position: 'relative' }}>
-                            <User size={18} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+                <form onSubmit={handleSubmit}>
+                    <div style={{ marginBottom: 18 }}>
+                        <label htmlFor="admin-username">Username</label>
+                        <div className="auth-input-wrap">
+                            <User size={17} className="auth-icon" />
                             <input
+                                id="admin-username"
                                 type="text"
+                                className="glass-input"
                                 placeholder="admin"
+                                autoComplete="username"
                                 value={username}
                                 onChange={(e) => setUsername(e.target.value)}
-                                style={{
-                                    width: '100%',
-                                    padding: '12px 14px 12px 42px',
-                                    background: 'rgba(15, 23, 42, 0.6)',
-                                    border: '1px solid rgba(51, 65, 85, 0.8)',
-                                    borderRadius: '12px',
-                                    color: '#fff',
-                                    fontSize: '14px',
-                                    outline: 'none',
-                                    transition: 'all 0.2s',
-                                }}
-                                onFocus={(e) => e.target.style.borderColor = '#3b82f6'}
-                                onBlur={(e) => e.target.style.borderColor = 'rgba(51, 65, 85, 0.8)'}
                             />
                         </div>
                     </div>
 
-                    <div>
-                        <label style={{ display: 'block', color: '#cbd5e1', fontSize: '14px', marginBottom: '8px', fontWeight: '500' }}>Password</label>
-                        <div style={{ position: 'relative' }}>
-                            <Lock size={18} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+                    <div style={{ marginBottom: 22 }}>
+                        <label htmlFor="admin-password">Password</label>
+                        <div className="auth-input-wrap">
+                            <Lock size={17} className="auth-icon" />
                             <input
+                                id="admin-password"
                                 type={showPassword ? 'text' : 'password'}
+                                className="glass-input"
                                 placeholder="••••••••"
+                                autoComplete="current-password"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
-                                style={{
-                                    width: '100%',
-                                    padding: '12px 42px 12px 42px',
-                                    background: 'rgba(15, 23, 42, 0.6)',
-                                    border: '1px solid rgba(51, 65, 85, 0.8)',
-                                    borderRadius: '12px',
-                                    color: '#fff',
-                                    fontSize: '14px',
-                                    outline: 'none',
-                                    transition: 'all 0.2s',
-                                }}
-                                onFocus={(e) => e.target.style.borderColor = '#3b82f6'}
-                                onBlur={(e) => e.target.style.borderColor = 'rgba(51, 65, 85, 0.8)'}
+                                style={{ paddingRight: 44 }}
                             />
                             <button
                                 type="button"
+                                className="auth-toggle"
                                 onClick={() => setShowPassword(!showPassword)}
-                                style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}
+                                aria-label={showPassword ? 'Sembunyikan password' : 'Tampilkan password'}
                             >
-                                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
                             </button>
                         </div>
                     </div>
 
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        style={{
-                            marginTop: '8px',
-                            background: 'linear-gradient(135deg, #3b82f6 0%, #4f46e5 100%)',
-                            color: 'white',
-                            fontWeight: '600',
-                            padding: '14px',
-                            borderRadius: '12px',
-                            border: 'none',
-                            cursor: loading ? 'not-allowed' : 'pointer',
-                            fontSize: '15px',
-                            boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)',
-                            transition: 'opacity 0.2s',
-                            opacity: loading ? 0.7 : 1
-                        }}
-                    >
+                    <button type="submit" className="glass-submit" disabled={loading}>
                         {loading ? 'Memproses...' : 'Masuk'}
                     </button>
                 </form>
 
-                <div style={{ marginTop: '32px', textAlign: 'center', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '20px' }}>
-                    <p style={{ color: '#475569', fontSize: '12px' }}>Sistem Internal © 2024 AMPConnect</p>
+                <div className="auth-glass-foot">
+                    Akses terbatas untuk staf AMPConnect
                 </div>
             </div>
         </div>

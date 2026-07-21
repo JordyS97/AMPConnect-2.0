@@ -1665,10 +1665,8 @@ tbody tr:last-child td {
   margin-bottom: 32px;
 }
 
-.auth-brand img {
-  height: 38px;
-  width: auto;
-  margin-bottom: 20px;
+.auth-brand > :first-child {
+  margin-bottom: 22px;
 }
 
 .auth-brand h1 {
@@ -1703,17 +1701,28 @@ tbody tr:last-child td {
 
 .auth-toggle {
   position: absolute;
-  right: 6px;
+  right: 4px;
   top: 50%;
   transform: translateY(-50%);
   background: none;
   border: none;
   cursor: pointer;
   color: var(--text-light);
-  padding: 8px;
+  /* 44x44 hit area — measured at 33px before, under the touch minimum. The icon
+     stays 17px; only the target grows. */
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
   border-radius: var(--radius-sm);
   display: flex;
+  align-items: center;
+  justify-content: center;
   line-height: 0;
+}
+
+.auth-toggle:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
 }
 
 .auth-toggle:hover {
@@ -1771,5 +1780,203 @@ tbody tr:last-child td {
 @media (max-width: 480px) {
   .auth-split {
     grid-template-rows: 26vh auto;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Admin auth — centred glass card over a full-bleed photograph.
+
+   Glass was removed from the dashboard because translucency fights legibility
+   when it sits over data. Over a photograph it is doing the opposite job:
+   letting the image read through while still lifting the form off it. Two
+   different problems, two different answers.
+
+   The safety condition is contrast, so the card carries its own dark tint
+   underneath the blur rather than relying on the photo being dark, and a scrim
+   sits over the whole image. Measured, not assumed.
+   --------------------------------------------------------------------------- */
+.auth-center {
+  position: relative;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 32px 20px;
+  background: #0b0f14;
+  overflow: hidden;
+}
+
+/* Take the whole <picture> out of flow rather than the <img> inside it.
+   Leaving picture in flow gave the grid a second row and pushed the card 80px
+   below centre; display:contents was worse still, since it promotes the
+   <source> element to a grid item that lays out as a block. */
+.auth-center > picture {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+.auth-center-bg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
+/* Radial scrim: darkest in the middle where the card sits, so the showroom
+   stays visible at the edges. */
+.auth-center::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background:
+    radial-gradient(58% 62% at 50% 50%, rgba(6, 9, 13, 0.86) 0%, rgba(6, 9, 13, 0.62) 55%, rgba(6, 9, 13, 0.42) 100%);
+  pointer-events: none;
+}
+
+.auth-glass {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 400px;
+  padding: 40px 36px 32px;
+  border-radius: 20px;
+  background: rgba(17, 24, 33, 0.62);
+  backdrop-filter: blur(22px) saturate(120%);
+  -webkit-backdrop-filter: blur(22px) saturate(120%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow:
+    0 24px 60px -12px rgba(0, 0, 0, 0.7),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+/* backdrop-filter is unsupported or disabled (Firefox default, forced-colors).
+   Without this the card would fall back to a 62% tint over a sharp photo and
+   the labels would sit on top of brake discs. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .auth-glass {
+    background: rgba(13, 18, 25, 0.94);
+  }
+}
+
+.auth-glass-head {
+  text-align: center;
+  margin-bottom: 28px;
+}
+
+.auth-glass-head .auth-glass-title {
+  margin-top: 20px;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #fff;
+  letter-spacing: -0.01em;
+}
+
+.auth-glass-head .auth-glass-sub {
+  margin-top: 4px;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.auth-glass label {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.82);
+  margin-bottom: 7px;
+}
+
+.auth-glass .glass-input {
+  width: 100%;
+  padding: 12px 14px 12px 42px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 12px;
+  color: #fff;
+  font-size: 0.92rem;
+  font-family: var(--font);
+  outline: none;
+  transition: border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+}
+
+.auth-glass .glass-input::placeholder {
+  color: rgba(255, 255, 255, 0.42);
+}
+
+.auth-glass .glass-input:focus {
+  background: rgba(255, 255, 255, 0.11);
+  border-color: rgba(200, 164, 92, 0.75);
+  /* Visible focus ring — the old inline-styled inputs only shifted border
+     colour, which is easy to miss when keyboard-navigating over a photo. */
+  box-shadow: 0 0 0 3px rgba(200, 164, 92, 0.22);
+}
+
+.auth-glass .auth-input-wrap .auth-icon {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.auth-glass .auth-toggle {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.auth-glass .auth-toggle:hover {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.auth-glass .glass-submit {
+  width: 100%;
+  margin-top: 6px;
+  padding: 13px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #d9b86e 0%, #c8a45c 100%);
+  color: #241c08;
+  font-family: var(--font);
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition: filter 0.18s ease, box-shadow 0.18s ease;
+  box-shadow: 0 6px 18px -6px rgba(200, 164, 92, 0.5);
+}
+
+.auth-glass .glass-submit:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+.auth-glass .glass-submit:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+.auth-glass .glass-submit:disabled {
+  opacity: 0.62;
+  cursor: not-allowed;
+}
+
+.auth-glass-foot {
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  text-align: center;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+@media (max-width: 480px) {
+  .auth-glass {
+    padding: 32px 24px 26px;
+  }
+}
+
+/* The blur is decorative; motion-sensitive users lose nothing by dropping it,
+   and it is a real rendering cost on low-end phones. */
+@media (prefers-reduced-transparency: reduce) {
+  .auth-glass {
+    background: rgba(13, 18, 25, 0.95);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
 }
