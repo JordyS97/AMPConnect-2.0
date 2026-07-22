@@ -1979,4 +1979,444 @@ tbody tr:last-child td {
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }
+}
+
+/* ---------------------------------------------------------------------------
+   Analytics surfaces — shared chrome for KPI tiles, chart cards, data tables.
+
+   The dashboard had four card idioms, three table styles and per-page inline
+   colours. These classes are the single vocabulary those pages now share, so
+   the product reads as one system rather than several.
+   --------------------------------------------------------------------------- */
+
+/* KPI tiles ---------------------------------------------------------------- */
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.kpi-tile {
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.kpi-tile-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.kpi-tile-title {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.kpi-tile-icon {
+  color: var(--text-light);
+  flex-shrink: 0;
+}
+
+.kpi-tile-value {
+  margin-top: 10px;
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.kpi-tile-value.is-warn {
+  color: var(--warning-dark);
+}
+
+/* The unit is not the number — it should not compete with it. */
+.kpi-tile-unit {
+  margin-left: 5px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  letter-spacing: 0;
+}
+
+.kpi-tile-sub {
+  margin-top: 5px;
+  font-size: 0.76rem;
+  color: var(--text-light);
+}
+
+/* Section headers ---------------------------------------------------------- */
+.section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+.section-title svg {
+  color: var(--text-light);
+}
+
+.section-sub {
+  margin-top: 3px;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.section-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Chart cards -------------------------------------------------------------- */
+.chart-card {
+  display: flex;
+  flex-direction: column;
+}
+
+/* A fixed height keeps the canvas from collapsing and stops Chart.js
+   re-measuring on every parent reflow. */
+.chart-canvas {
+  position: relative;
+  height: 240px;
+}
+
+.chart-canvas-tall {
+  height: 300px;
+}
+
+/* Legend ------------------------------------------------------------------- */
+.legend-list {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.legend-list li {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 2px;
+  font-size: 0.82rem;
+  border-top: 1px solid var(--border-light);
+}
+
+.legend-list li:first-child {
+  border-top: 0;
+}
+
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.legend-label {
+  color: var(--text);
+}
+
+.legend-meta {
+  margin-left: auto;
+  font-size: 0.76rem;
+  color: var(--text-secondary);
+}
+
+/* Data tables -------------------------------------------------------------- */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.83rem;
+}
+
+.data-table th {
+  text-align: left;
+  padding: 9px 12px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-light);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  background: var(--bg-card);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.data-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-light);
+  color: var(--text);
+  vertical-align: middle;
+}
+
+.data-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+/* Row hover is a pointer affordance, not decoration — keep it near-invisible. */
+.data-table tbody tr {
+  transition: background-color 120ms ease;
+}
+
+.data-table tbody tr:hover {
+  background: var(--border-light);
+}
+
+.data-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.cell-strong {
+  font-weight: 500;
+}
+
+.cell-muted {
+  color: var(--text-secondary);
+}
+
+.cell-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  background: var(--bg);
+  border: 1px solid var(--border-light);
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.table-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-light);
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+/* Segmented control -------------------------------------------------------- */
+.segmented {
+  display: inline-flex;
+  padding: 2px;
+  background: var(--bg);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+}
+
+.segmented-item {
+  border: 0;
+  background: none;
+  padding: 5px 11px;
+  border-radius: 6px;
+  font-family: var(--font);
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  /* Named properties, not `all` — and short, because this is a control the
+     user may click repeatedly. */
+  transition: background-color 140ms ease, color 140ms ease, transform 140ms ease;
+}
+
+.segmented-item:hover {
+  color: var(--text);
+}
+
+.segmented-item.is-active {
+  background: var(--bg-card);
+  color: var(--text);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+
+/* Press feedback: the control should feel like it heard the click. */
+.segmented-item:active {
+  transform: scale(0.97);
+}
+
+.segmented-item:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+
+.control-select {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  font-family: var(--font);
+  font-size: 0.8rem;
+  color: var(--text);
+  cursor: pointer;
+  outline: none;
+  transition: border-color 140ms ease;
+}
+
+.control-select:focus {
+  border-color: var(--primary);
+}
+
+/* Pager -------------------------------------------------------------------- */
+.pager {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pager-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease, transform 140ms ease;
+}
+
+.pager-btn:hover:not(:disabled) {
+  background: var(--bg);
+  color: var(--text);
+}
+
+.pager-btn:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.pager-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.pager-label {
+  padding: 0 8px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+
+/* Skeletons ---------------------------------------------------------------- */
+.table-skeleton {
+  display: grid;
+  gap: 9px;
+}
+
+.skeleton-row {
+  height: 32px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(90deg, var(--border-light) 25%, var(--bg) 50%, var(--border-light) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-sweep 1.4s linear infinite;
+}
+
+@keyframes skeleton-sweep {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* A sweeping placeholder is motion the user did not ask for; hold it still and
+   let the flat tone carry the "not ready yet" signal instead. */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-row {
+    animation: none;
+    background: var(--border-light);
+  }
+}
+
+/* Analytics grid ----------------------------------------------------------- */
+/* Was injected as a <style> block inside DashboardAnalytics' render tree, which
+   re-serialised on every render and left BuyingCycleSection depending on that
+   page being mounted for its own layout. */
+.charts-grid-custom {
+  display: grid;
+  grid-template-columns: 3fr 1fr;
+  gap: 16px;
+}
+
+/* Grid items stretch to the tallest row by default, so the narrow chart column
+   was pulled to the height of the 50-row table beside it and padded the
+   difference with empty space inside the card — the gap under the Buying Cycle
+   legend. Anchoring to the top lets each card end where its content ends. */
+.charts-grid-custom > .card {
+  align-self: start;
+}
+
+@media (max-width: 1280px) {
+  .charts-grid-custom {
+    grid-template-columns: 2fr 1fr;
+  }
+}
+
+@media (max-width: 1024px) {
+  .charts-grid-custom {
+    grid-template-columns: 1fr;
+  }
+
+  /* Stacked, a top-anchored card would look detached — let it fill again. */
+  .charts-grid-custom > .card {
+    align-self: stretch;
+  }
+}
+
+/* Align the older .stat-card with the restrained treatment used elsewhere: a
+   container should not lift and gain elevation on hover. */
+.stat-card:hover {
+  transform: none;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  border-color: var(--border);
+}
+
+.stat-card .stat-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text-secondary);
+}
+
+.stat-card .stat-value {
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
 }

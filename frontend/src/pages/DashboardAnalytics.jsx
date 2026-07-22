@@ -58,13 +58,12 @@ const DashboardAnalytics = () => {
     return (
         <div style={{ width: '100%', minHeight: '100%' }}>
             <div style={{ maxWidth: '100%', margin: '0 auto' }}>
-                <div className="card" style={{ marginBottom: 20, borderLeft: '4px solid var(--primary)' }}>
-                    <h1 style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>
-                        Seasonal & Buying Cycle Intelligence
-                    </h1>
-                    <p style={{ color: 'var(--text-secondary)' }}>
-                        Advanced analytics for retention, seasonality, and inventory forecasting.
-                    </p>
+                {/* A page title does not need to be a card. The bordered panel and
+                    800-weight heading were spending a full row of vertical space
+                    on a label. */}
+                <div className="page-header">
+                    <h1>Seasonal &amp; Buying Cycle Intelligence</h1>
+                    <p>Retensi, musiman, dan perkiraan kebutuhan stok</p>
                 </div>
 
                 {/* 1. Overview KPIs */}
@@ -77,26 +76,11 @@ const DashboardAnalytics = () => {
                 <SeasonalitySection data={data.seasonality} />
 
                 {/* Main Content Grid: 3fr (Main Data) - 1fr (Sidebar/Actions) */}
+                {/* The <style> block that used to live here re-serialised on every
+                    render and defined .charts-grid-custom, which BuyingCycleSection
+                    also depends on — so that component's layout silently relied on
+                    this page being mounted. The rule now lives in index.css. */}
                 <div className="charts-grid-custom">
-                    <style>
-                        {`
-                            .charts-grid-custom {
-                                display: grid;
-                                grid-template-columns: 3fr 1fr;
-                                gap: 16px;
-                            }
-                            @media (max-width: 1200px) {
-                                .charts-grid-custom {
-                                    grid-template-columns: 2fr 1fr;
-                                }
-                            }
-                            @media (max-width: 1024px) {
-                                .charts-grid-custom {
-                                    grid-template-columns: 1fr;
-                                }
-                            }
-                        `}
-                    </style>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                         {/* 4. Due Tracking */}
                         <CustomerDueSection data={data.dueTracking} />

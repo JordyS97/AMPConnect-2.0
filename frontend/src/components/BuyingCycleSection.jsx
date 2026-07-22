@@ -1,65 +1,98 @@
 import React from 'react';
 import { Bar } from 'react-chartjs-2';
-import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js';
+import { STATUS, CHROME } from '../utils/chartPalette';
 
-ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
+// Elements are registered once in utils/chartSetup.js, imported from main.jsx.
+// The per-file re-registration that used to sit here was one of seven competing
+// call sites for a single global registry.
 
 const BuyingCycleSection = ({ data }) => {
-    if (!data) return <div className="card p-8 text-center animate-pulse">Loading Cycle Data...</div>;
+    // Was "card p-8 text-center animate-pulse" — three of those are Tailwind
+    // classes and this project has no Tailwind, so the loading state rendered
+    // as unstyled text.
+    if (!data) {
+        return (
+            <div className="card table-skeleton" aria-busy="true">
+                {Array.from({ length: 4 }, (_, i) => <div key={i} className="skeleton-row" />)}
+            </div>
+        );
+    }
 
     const { patterns, distribution } = data;
 
+    const labels = Object.keys(distribution);
+    const values = Object.values(distribution);
+    const totalCustomers = values.reduce((a, b) => a + b, 0);
+
+    // The old chart passed 4 colours for 7 buckets, so Chart.js cycled them:
+    // "46-60 days" was rendered the same green as "0-7 days". Colour tracked
+    // position in a repeating list, not meaning. Worse, the legend underneath
+    // described 0-30 / 31-60 / 60+ while the chart plotted seven different
+    // buckets — the key did not describe the chart it sat next to.
+    //
+    // Now each bucket maps to the band the legend actually names, so colour
+    // carries one consistent meaning and the key is true.
+    const bandOf = (label) => {
+        const upper = parseInt(label, 10);
+        if (label.startsWith('90+')) return 'risk';
+        if (upper <= 30) return 'frequent';
+        if (upper <= 60) return 'regular';
+        return 'risk';
+    };
+    const BAND_COLOR = { frequent: STATUS.good, regular: STATUS.warning, risk: STATUS.critical };
+
     const chartData = {
-        labels: Object.keys(distribution),
-        datasets: [
-            {
-                label: 'Customers',
-                data: Object.values(distribution),
-                backgroundColor: [
-                    'rgba(74, 222, 128, 0.8)', // Green
-                    'rgba(250, 204, 21, 0.8)', // Yellow
-                    'rgba(251, 146, 60, 0.8)', // Orange
-                    'rgba(248, 113, 113, 0.8)'  // Red
-                ],
-                borderColor: [
-                    '#22c55e', '#eab308', '#f97316', '#ef4444'
-                ],
-                borderWidth: 1,
-                borderRadius: 8,
-                hoverBackgroundColor: [
-                    '#22c55e', '#eab308', '#f97316', '#ef4444'
-                ]
-            }
-        ]
+        labels,
+        datasets: [{
+            label: 'Pelanggan',
+            data: values,
+            backgroundColor: labels.map((l) => BAND_COLOR[bandOf(l)]),
+            borderWidth: 0,
+            // Rounded only on the data end, anchored to the baseline.
+            borderRadius: 4,
+            borderSkipped: 'start',
+            barThickness: 18,
+        }],
     };
 
     const options = {
+        // Horizontal. Seven category labels in a narrow sidebar column forced a
+        // 45-degree rotation that overlapped and clipped; on the y-axis they
+        // read straight, and the bars fill the column height that was empty.
+        indexAxis: 'y',
         responsive: true,
+        maintainAspectRatio: false,
+        // A distribution that loads once does not need to animate in.
+        animation: false,
         plugins: {
             legend: { display: false },
-            title: { display: true, text: 'Buying Cycle Distribution', font: { size: 16, weight: 'bold' }, color: '#374151' },
+            title: { display: false },
             tooltip: {
-                backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                titleColor: '#1f2937',
-                bodyColor: '#4b5563',
-                borderColor: '#e5e7eb',
-                borderWidth: 1,
+                backgroundColor: CHROME.ink,
                 padding: 10,
-                boxPadding: 4
-            }
+                cornerRadius: 8,
+                displayColors: false,
+                callbacks: {
+                    label: (ctx) => {
+                        const pct = totalCustomers ? (ctx.raw / totalCustomers) * 100 : 0;
+                        return `${ctx.raw} pelanggan · ${pct.toFixed(0)}%`;
+                    },
+                },
+            },
         },
         scales: {
-            y: {
-                beginAtZero: true,
-                grid: { color: '#f3f4f6' },
-                ticks: { color: '#9ca3af' }
-            },
             x: {
+                beginAtZero: true,
+                grid: { color: CHROME.grid, drawTicks: false },
+                border: { display: false },
+                ticks: { color: CHROME.label, font: { size: 11 }, precision: 0 },
+            },
+            y: {
                 grid: { display: false },
-                ticks: { color: '#6b7280', font: { weight: '500' } }
-            }
+                border: { color: CHROME.axis },
+                ticks: { color: CHROME.label, font: { size: 11 } },
+            },
         },
-        maintainAspectRatio: false
     };
 
     return (
@@ -132,24 +165,37 @@ const BuyingCycleSection = ({ data }) => {
             </div>
 
             {/* Distribution Chart */}
-            <div className="card" style={{ display: 'flex', flexDirection: 'column' }}>
-                <div style={{ height: '240px', marginBottom: 16 }}>
+            <div className="card chart-card">
+                <div className="section-head">
+                    <div>
+                        <h3 className="section-title">Sebaran Siklus Beli</h3>
+                        <p className="section-sub">{totalCustomers} pelanggan dengan pola terbaca</p>
+                    </div>
+                </div>
+
+                <div className="chart-canvas chart-canvas-tall">
                     <Bar data={chartData} options={options} />
                 </div>
-                <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: 8, background: '#f0fdf4', borderRadius: 8, border: '1px solid #dcfce7', fontSize: '0.9rem' }}>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--success)' }}></span> 0-30 days</span>
-                        <span style={{ fontWeight: 'bold', color: 'var(--success-dark)' }}>Frequent</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: 8, background: '#fefce8', borderRadius: 8, border: '1px solid #fef9c3', fontSize: '0.9rem' }}>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--warning)' }}></span> 31-60 days</span>
-                        <span style={{ fontWeight: 'bold', color: 'var(--warning-dark)' }}>Regular</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: 8, background: '#fef2f2', borderRadius: 8, border: '1px solid #fee2e2', fontSize: '0.9rem' }}>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--danger)' }}></span> 60+ days</span>
-                        <span style={{ fontWeight: 'bold', color: 'var(--danger-dark)' }}>Risk</span>
-                    </div>
-                </div>
+
+                {/* Three rows, not seven tinted panels. The key now matches the
+                    bands the chart is actually coloured by. */}
+                <ul className="legend-list">
+                    <li>
+                        <span className="legend-dot" style={{ background: STATUS.good }} />
+                        <span className="legend-label">0–30 hari</span>
+                        <span className="legend-meta">Sering</span>
+                    </li>
+                    <li>
+                        <span className="legend-dot" style={{ background: STATUS.warning }} />
+                        <span className="legend-label">31–60 hari</span>
+                        <span className="legend-meta">Reguler</span>
+                    </li>
+                    <li>
+                        <span className="legend-dot" style={{ background: STATUS.critical }} />
+                        <span className="legend-label">60+ hari</span>
+                        <span className="legend-meta">Berisiko</span>
+                    </li>
+                </ul>
             </div>
         </div>
     );

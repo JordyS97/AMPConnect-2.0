@@ -4,6 +4,7 @@ import { DollarSign, Users, AlertTriangle, TrendingUp, Activity, Award, Search }
 import { formatCurrency, formatNumber } from '../../utils/formatters';
 import { useToast } from '../../components/Toast';
 import api from '../../api/axios';
+import CustomerFavoriteParts from '../../components/CustomerFavoriteParts';
 
 export default function CustomerAnalytics() {
     const [data, setData] = useState(null);
@@ -82,19 +83,24 @@ export default function CustomerAnalytics() {
             {/* Value Metrics */}
             <div className="stats-grid">
                 <div className="stat-card">
-                    <div className="stat-icon" style={{ background: '#eff6ff' }}><DollarSign size={24} color="#2563eb" /></div>
-                    <div className="stat-value">{formatCurrency(value.avg_clv || 0)}</div>
-                    <div className="stat-label">Rata-rata CLV (Lifetime Value)</div>
-                </div>
-                <div className="stat-card">
-                    <div className="stat-icon" style={{ background: '#f0fdf4' }}><Activity size={24} color="#16a34a" /></div>
+                    <div className="stat-icon"><DollarSign size={20} /></div>
                     <div className="stat-value">{formatCurrency(value.arpc || 0)}</div>
-                    <div className="stat-label">Avg. Revenue Per Customer (ARPC)</div>
+                    <div className="stat-label">Rata-rata omzet per pelanggan</div>
                 </div>
                 <div className="stat-card">
-                    <div className="stat-icon" style={{ background: '#fff7ed' }}><AlertTriangle size={24} color="#ea580c" /></div>
-                    <div className="stat-value">{formatNumber(value.concentration_risk || 0)}%</div>
-                    <div className="stat-label">Konsentrasi Revenue (Top 10)</div>
+                    {/* Was "Rata-rata CLV", which the API filled with the ARPC value,
+                        so both cards showed the identical figure. This is gross
+                        profit per customer — a genuinely different number. */}
+                    <div className="stat-icon"><Activity size={20} /></div>
+                    <div className="stat-value">{formatCurrency(value.agpc || 0)}</div>
+                    <div className="stat-label">Rata-rata profit per pelanggan</div>
+                </div>
+                <div className="stat-card">
+                    <div className="stat-icon"><AlertTriangle size={20} /></div>
+                    {/* One decimal. formatNumber rendered 69.715 as "69,715%",
+                        which reads as sixty-nine thousand. */}
+                    <div className="stat-value">{(value.concentration_risk || 0).toFixed(1)}%</div>
+                    <div className="stat-label">Konsentrasi omzet (10 pelanggan teratas)</div>
                 </div>
             </div>
 
@@ -151,6 +157,9 @@ export default function CustomerAnalytics() {
                     </div>
                 </div>
             </div>
+
+            {/* What each customer actually buys */}
+            <CustomerFavoriteParts filters={filters} />
 
             {/* Behavior & Risk */}
             <div className="grid-2-cols" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: 20, marginTop: 24 }}>

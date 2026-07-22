@@ -7,7 +7,7 @@ const { uploadLimiter } = require('../middleware/rateLimiter');
 const {
     getDashboard, getSales, getSaleDetail, getStock, adjustStock,
     uploadSales, uploadStock, getUploadHistory, downloadTemplate, generateReport,
-    getCustomerAnalytics, getInventoryAnalytics, getSalesAnalytics, getPriceAnalytics
+    getCustomerAnalytics, getCustomerFavorites, getInventoryAnalytics, getSalesAnalytics, getPriceAnalytics
 } = require('../controllers/adminController');
 const {
     getCustomers, addCustomer, editCustomer, resetCustomerPassword, toggleCustomerStatus, deleteCustomer, uploadCustomers,
@@ -80,6 +80,7 @@ router.post('/reports/generate', generateReport);
 
 // Customer Analytics
 router.get('/customer-analytics', getCustomerAnalytics);
+router.get('/customer-favorites', getCustomerFavorites);
 
 // Inventory Analytics
 router.get('/inventory-analytics', getInventoryAnalytics);

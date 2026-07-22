@@ -1063,7 +1063,11 @@ const getCustomerAnalytics = async (req, res, next) => {
             SELECT 
                 COUNT(DISTINCT t.customer_id) as total_customers,
                 SUM(t.net_sales) as total_revenue,
-                SUM(t.net_sales) / NULLIF(COUNT(DISTINCT t.customer_id), 0) as arpc
+                SUM(t.net_sales) / NULLIF(COUNT(DISTINCT t.customer_id), 0) as arpc,
+                -- Average gross profit per customer. Replaces the old avg_clv,
+                -- which was literally arpc under a different name, so the UI
+                -- rendered the same figure twice in two cards.
+                SUM(t.gross_profit) / NULLIF(COUNT(DISTINCT t.customer_id), 0) as agpc
             FROM transactions t
             LEFT JOIN customers c ON t.customer_id = c.id
             ${whereClause}
@@ -1138,7 +1142,7 @@ const getCustomerAnalytics = async (req, res, next) => {
                 },
                 value: {
                     arpc: parseFloat(valueMetrics.rows[0].arpc),
-                    avg_clv: parseFloat(valueMetrics.rows[0].arpc), // Simple proxy for now
+                    agpc: parseFloat(valueMetrics.rows[0].agpc) || 0,
                     concentration_risk: concentrationRisk
                 },
                 behavior: {
@@ -1671,10 +1675,106 @@ const recalculateTiers = async (req, res, next) => {
     }
 };
 
+// What each customer actually buys: one row per (customer, part), with the
+// quantity and the discount they are getting on it.
+//
+// The discount rate is SUM(diskon) / SUM(price) rather than AVG of a per-line
+// percentage: transaction_items.price holds the line's gross amount (mapped from
+// the 'Sales' column on upload, not a unit price), so this is the true weighted
+// rate. Averaging per-line percentages would let a Rp 50k line count as much as
+// a Rp 5m one.
+const getCustomerFavorites = async (req, res, next) => {
+    try {
+        const {
+            startDate, endDate, customer, group_material,
+            page = 1, limit = 25, sort = 'qty'
+        } = req.query;
+
+        const params = [];
+        let pi = 1;
+        let where = 'WHERE 1=1';
+
+        if (startDate) { where += ` AND t.tanggal >= $${pi}`; params.push(startDate); pi++; }
+        if (endDate) { where += ` AND t.tanggal <= $${pi}`; params.push(endDate); pi++; }
+        if (customer) {
+            where += ` AND (c.name ILIKE $${pi} OR t.no_customer ILIKE $${pi})`;
+            params.push(`%${customer}%`); pi++;
+        }
+        if (group_material && group_material !== 'All') {
+            where += ` AND ti.group_material = $${pi}`; params.push(group_material); pi++;
+        }
+
+        // Whitelist — never interpolate a client-supplied sort into SQL.
+        const sortMap = {
+            qty: 'total_qty DESC',
+            value: 'total_value DESC',
+            disc: 'avg_disc_pct DESC NULLS LAST',
+            trx: 'trx_count DESC',
+        };
+        const orderBy = sortMap[sort] || sortMap.qty;
+
+        const base = `
+            FROM transaction_items ti
+            JOIN transactions t ON t.id = ti.transaction_id
+            JOIN customers c ON c.id = t.customer_id
+            ${where}
+        `;
+
+        const countRes = await pool.query(
+            `SELECT COUNT(*) FROM (
+                SELECT 1 ${base}
+                GROUP BY c.id, c.name, c.no_customer, ti.group_material, ti.no_part, ti.nama_part
+             ) s`,
+            params
+        );
+
+        const offset = (parseInt(page, 10) - 1) * parseInt(limit, 10);
+        const rows = await pool.query(
+            `SELECT
+                c.id AS customer_id,
+                c.name AS customer,
+                c.no_customer,
+                COALESCE(NULLIF(ti.group_material, ''), 'Lainnya') AS group_material,
+                ti.no_part,
+                ti.nama_part,
+                SUM(ti.qty) AS total_qty,
+                COUNT(DISTINCT t.id) AS trx_count,
+                SUM(ti.subtotal) AS total_value,
+                ROUND(SUM(ti.diskon) / NULLIF(SUM(ti.price), 0) * 100, 1) AS avg_disc_pct
+             ${base}
+             GROUP BY c.id, c.name, c.no_customer, ti.group_material, ti.no_part, ti.nama_part
+             ORDER BY ${orderBy}
+             LIMIT $${pi} OFFSET $${pi + 1}`,
+            [...params, parseInt(limit, 10), offset]
+        );
+
+        // Category list for the filter, scoped to the same window.
+        const groups = await pool.query(
+            `SELECT DISTINCT COALESCE(NULLIF(ti.group_material, ''), 'Lainnya') AS g
+             ${base} ORDER BY 1`,
+            params
+        );
+
+        const total = parseInt(countRes.rows[0].count, 10);
+        res.json({
+            success: true,
+            data: {
+                rows: rows.rows,
+                groups: groups.rows.map(r => r.g),
+                total,
+                page: parseInt(page, 10),
+                totalPages: Math.ceil(total / parseInt(limit, 10)) || 1,
+            }
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     getDashboard, getSales, getSaleDetail, getStock, adjustStock,
     uploadSales, uploadStock, getUploadHistory, downloadTemplate, generateReport,
-    getCustomerAnalytics, getInventoryAnalytics, getSalesAnalytics, getPriceAnalytics,
+    getCustomerAnalytics, getCustomerFavorites, getInventoryAnalytics, getSalesAnalytics, getPriceAnalytics,
     uploadSettingsQR, getSettingsQR, recalculateFinancials, fixDatabase, recalculateTiers
 };
 
