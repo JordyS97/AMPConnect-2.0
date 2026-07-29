@@ -49,7 +49,7 @@ const CustomerDueSection = ({ data }) => {
                 </div>
             </div>
 
-            <div className="table-container">
+            <div className="table-container" style={{ maxHeight: 420, overflowY: 'auto' }}>
                 <table>
                     <thead>
                         <tr>

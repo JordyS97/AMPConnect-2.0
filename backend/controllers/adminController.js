@@ -1683,6 +1683,56 @@ const recalculateTiers = async (req, res, next) => {
 // the 'Sales' column on upload, not a unit price), so this is the true weighted
 // rate. Averaging per-line percentages would let a Rp 50k line count as much as
 // a Rp 5m one.
+// Sales vs current stock, aggregated by parts.group_tobpm. Stock lives on the
+// parts master (which carries group_tobpm); sales are attributed by joining
+// transaction_items to parts on no_part, so items absent from the parts master
+// are not counted here — that is intentional (TOBPM only exists on parts).
+const getSalesVsStock = async (req, res, next) => {
+    try {
+        const { startDate, endDate } = req.query;
+        const params = [];
+        let dateFilter = '';
+        if (startDate) { params.push(startDate); dateFilter += ` AND t.tanggal >= $${params.length}`; }
+        if (endDate)   { params.push(endDate);   dateFilter += ` AND t.tanggal <= $${params.length}`; }
+
+        const { rows } = await pool.query(`
+            WITH sales AS (
+                SELECT p.group_tobpm AS tobpm,
+                       SUM(ti.subtotal) AS net_sales,
+                       SUM(ti.qty) AS qty_sold,
+                       SUM(ti.gross_profit) AS gp
+                FROM transaction_items ti
+                JOIN transactions t ON t.id = ti.transaction_id
+                JOIN parts p ON p.no_part = ti.no_part
+                WHERE NULLIF(p.group_tobpm,'') IS NOT NULL ${dateFilter}
+                GROUP BY 1
+            ),
+            stock AS (
+                SELECT group_tobpm AS tobpm,
+                       SUM(qty) AS stock_qty,
+                       SUM(amount) AS stock_value,
+                       COUNT(*) AS sku_count
+                FROM parts
+                WHERE NULLIF(group_tobpm,'') IS NOT NULL
+                GROUP BY 1
+            )
+            SELECT COALESCE(s.tobpm, st.tobpm) AS tobpm,
+                   COALESCE(ROUND(s.net_sales),0)::float8 AS net_sales,
+                   COALESCE(s.qty_sold,0)::int AS qty_sold,
+                   COALESCE(st.stock_qty,0)::int AS stock_qty,
+                   COALESCE(ROUND(st.stock_value),0)::float8 AS stock_value,
+                   COALESCE(st.sku_count,0)::int AS sku_count,
+                   ROUND(COALESCE(s.gp,0)/NULLIF(s.net_sales,0)*100,1)::float8 AS gp_pct
+            FROM sales s FULL OUTER JOIN stock st ON s.tobpm = st.tobpm
+            ORDER BY net_sales DESC
+        `, params);
+
+        res.json({ success: true, data: rows });
+    } catch (error) {
+        next(error);
+    }
+};
+
 const getCustomerFavorites = async (req, res, next) => {
     try {
         const {
@@ -1775,6 +1825,7 @@ module.exports = {
     getDashboard, getSales, getSaleDetail, getStock, adjustStock,
     uploadSales, uploadStock, getUploadHistory, downloadTemplate, generateReport,
     getCustomerAnalytics, getCustomerFavorites, getInventoryAnalytics, getSalesAnalytics, getPriceAnalytics,
+    getSalesVsStock,
     uploadSettingsQR, getSettingsQR, recalculateFinancials, fixDatabase, recalculateTiers
 };
 

@@ -107,7 +107,10 @@ const BuyingCycleSection = ({ data }) => {
                     <span className="badge badge-secondary">{patterns.length} Active Patterns</span>
                 </div>
 
-                <div className="table-container">
+                {/* Cap the height: with 40+ patterns this table dwarfed the
+                    distribution chart beside it, leaving the big blank gap on
+                    the right. A fixed scroll region keeps the two columns level. */}
+                <div className="table-container" style={{ maxHeight: 460, overflowY: 'auto' }}>
                     <table>
                         <thead>
                             <tr>

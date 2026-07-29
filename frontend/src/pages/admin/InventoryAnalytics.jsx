@@ -7,6 +7,8 @@ ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarEle
 import { formatCurrency, formatNumber, formatPercent } from '../../utils/formatters';
 import { useToast } from '../../components/Toast';
 import api from '../../api/axios';
+import { seriesColors, CHROME } from '../../utils/chartPalette';
+import SalesVsStock from '../../components/SalesVsStock';
 
 export default function InventoryAnalytics() {
     const [data, setData] = useState(null);
@@ -36,24 +38,36 @@ export default function InventoryAnalytics() {
 
     const { best, worst, health, category, cross_sell } = data;
 
-    // Use a soft, premium color palette for the chart
-    const chartColors = ['#2563eb', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1'];
+    // The donut had ~35 slices and a legend wall that dwarfed the chart. Cap to
+    // the top 8 categories by revenue and fold the long tail into "Lainnya", so
+    // the legend is nine readable rows and colour comes from the validated,
+    // colour-blind-safe palette (the 9th slot is the muted "other" tone — the
+    // right meaning for the aggregated remainder).
+    const sortedCats = [...category.group_part].sort((a, b) => Number(b.revenue) - Number(a.revenue));
+    const TOP_N = 8;
+    const topCats = sortedCats.slice(0, TOP_N);
+    const tailTotal = sortedCats.slice(TOP_N).reduce((a, b) => a + Number(b.revenue), 0);
+    const donutCats = tailTotal > 0
+        ? [...topCats, { category: 'Lainnya', revenue: tailTotal }]
+        : topCats;
+    const totalRevenue = category.group_part.reduce((a, b) => a + Number(b.revenue), 0);
 
     const categoryChartData = {
-        labels: category.group_part.map(c => c.category || 'Lainnya'),
+        labels: donutCats.map(c => c.category || 'Lainnya'),
         datasets: [{
-            data: category.group_part.map(c => c.revenue),
-            backgroundColor: chartColors,
-            borderWidth: 0,
-            hoverOffset: 10
+            data: donutCats.map(c => c.revenue),
+            backgroundColor: seriesColors(donutCats.length),
+            borderColor: '#fff',
+            borderWidth: 2,
+            hoverOffset: 6
         }]
     };
 
     return (
         <div className="analytics-page analytics-premium" style={{ background: '#F6F8FB', minHeight: '100vh', padding: 0 }}>
-            <div className="page-header" style={{ marginBottom: 32 }}>
-                <h1 style={{ fontSize: '1.8rem', fontWeight: 800, letterSpacing: '-0.5px' }}>Product Performance Dashboard</h1>
-                <p style={{ marginTop: 8, fontSize: '1rem' }}>Real-time inventory insights and sales analytics</p>
+            <div className="page-header" style={{ marginBottom: 24 }}>
+                <h1>Product Performance Dashboard</h1>
+                <p>Real-time inventory insights and sales analytics</p>
             </div>
 
             {/* Filter Section */}
@@ -97,8 +111,10 @@ export default function InventoryAnalytics() {
                 </div>
             </div>
 
-            {/* Main Grid: Best Performers Table (Left) & Donut Chart (Right) */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: 32 }}>
+            {/* Main Grid: Best Performers Table (Left) & Donut Chart (Right).
+                Was an inline 1.6fr/1fr grid with no collapse; .analytics-split
+                falls to one column under 768px. */}
+            <div className="analytics-split" style={{ gap: 24, marginBottom: 24 }}>
 
                 {/* Left: Top Product Performance Table */}
                 <div className="glass-card">
@@ -162,58 +178,54 @@ export default function InventoryAnalytics() {
                         <p style={{ fontSize: '0.85rem', color: '#94a3b8', marginTop: 4 }}>Sales distribution by product group</p>
                     </div>
 
-                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', position: 'relative', minHeight: 400 }}>
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', position: 'relative', minHeight: 340 }}>
                         <Doughnut
                             data={categoryChartData}
                             options={{
                                 responsive: true,
                                 maintainAspectRatio: false,
-                                cutout: '70%',
+                                cutout: '68%',
+                                animation: false,
                                 plugins: {
                                     legend: {
                                         position: 'bottom',
                                         labels: {
                                             usePointStyle: true,
                                             pointStyle: 'circle',
-                                            padding: 20,
+                                            boxWidth: 8,
+                                            padding: 12,
                                             font: { size: 11, family: 'Inter' },
-                                            color: '#64748b'
+                                            color: '#52514e'
                                         }
                                     },
                                     tooltip: {
-                                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                                        titleColor: '#0f172a',
-                                        bodyColor: '#475569',
-                                        borderColor: '#e2e8f0',
-                                        borderWidth: 1,
+                                        backgroundColor: CHROME.ink,
                                         padding: 12,
                                         cornerRadius: 8,
                                         displayColors: true,
                                         boxPadding: 4,
                                         callbacks: {
-                                            label: function (context) {
-                                                let label = context.label || '';
-                                                if (label) { label += ': '; }
-                                                if (context.parsed !== null) { label += formatCurrency(context.parsed); }
-                                                return label;
+                                            label: (ctx) => {
+                                                const pct = totalRevenue ? (ctx.parsed / totalRevenue) * 100 : 0;
+                                                return ` ${ctx.label}: ${formatCurrency(ctx.parsed)} · ${pct.toFixed(1)}%`;
                                             }
                                         }
                                     }
                                 }
                             }}
                         />
-                        {/* Center Text */}
+                        {/* Center Text — sits over the ring, above the bottom legend. */}
                         <div style={{
                             position: 'absolute',
-                            top: '45%', // Adjusted for bottom legend
+                            top: '42%',
                             left: '50%',
                             transform: 'translate(-50%, -50%)',
                             textAlign: 'center',
                             pointerEvents: 'none'
                         }}>
-                            <div style={{ fontSize: '0.85rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 4 }}>Total Revenue</div>
-                            <div style={{ fontSize: '2rem', fontWeight: 800, color: '#0f172a', letterSpacing: '-1px' }}>
-                                {formatNumber(category.group_part.reduce((a, b) => a + Number(b.revenue), 0) / 1000000)}M+
+                            <div style={{ fontSize: '0.72rem', color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Total Revenue</div>
+                            <div style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--text)', letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums' }}>
+                                {formatCurrency(totalRevenue)}
                             </div>
                         </div>
                     </div>
@@ -221,9 +233,13 @@ export default function InventoryAnalytics() {
 
             </div>
 
-            {/* Bottom Section (Cross-Sell / Alerts) - Optional in this view but kept for completeness */}
+            {/* Sales vs Stock by TOBPM — bar + detail table */}
+            <div style={{ marginTop: 24 }}>
+                <SalesVsStock filters={filters} />
+            </div>
+
             {/* Bottom Section (Cross-Sell / Alerts) */}
-            <div style={{ marginTop: 32, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 32 }}>
+            <div className="grid-2-cols" style={{ marginTop: 24, gap: 24 }}>
                 {/* Cross Selling Opportunities */}
                 <div className="glass-card">
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
